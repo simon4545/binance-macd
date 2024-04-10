@@ -91,7 +91,12 @@ func crossdown(a, b []float64) bool {
 
 func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64) {
 	// var err error
+	pair := fmt.Sprintf("%sUSDT", symbol)
 	if len(closingPrices) < 30 {
+		return
+	}
+	if lotSizeMap[pair] == 0 {
+		fmt.Println("没有拿到精度")
 		return
 	}
 	ema10 := talib.Ema(closingPrices, 10)
@@ -105,9 +110,9 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 				return
 			}
 			//插入买单
-			ret := createMarketOrder(client, symbol, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
+			ret := createMarketOrder(client, pair, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
 			if ret != nil {
-				InsertInvestment(symbol, c.Amount, RoundStepSize((c.Amount/lastPrice), lotSizeMap[symbol]))
+				InsertInvestment(symbol, c.Amount, RoundStepSize((c.Amount/lastPrice), lotSizeMap[pair]))
 			}
 		}
 	}
@@ -117,13 +122,13 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 			return
 		}
 		balance := GetSumInvestmentQuantity(symbol)
-		if balance > lotSizeMap[symbol] &&
+		if balance > lotSizeMap[pair] &&
 			((balance*lastPrice) > GetSumInvestment(symbol) ||
 				GetInvestmentCount(symbol) >= 6) {
-			quantity := RoundStepSize(balance, lotSizeMap[symbol])
+			quantity := RoundStepSize(balance, lotSizeMap[pair])
 			fmt.Println(symbol, "quantity", quantity)
 			// 插入卖单
-			ret := createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
+			ret := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
 			if ret != nil {
 				ClearHistory(symbol)
 			}
