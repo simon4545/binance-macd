@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -90,34 +91,40 @@ func crossdown(a, b []float64) bool {
 
 func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64) {
 	var err error
-	tokenpairs := strings.Split(symbol, "_")
 	ema10 := talib.Ema(closingPrices, 10)
 	ema26 := talib.Ema(closingPrices, 26)
 	if crossover(ema10, ema26) {
-		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", GetInvestmentCount(tokenpairs[0]), "最近是否有投资", GetRecentInvestment(tokenpairs[0], Period), "持仓平均价", InvestmentAvgPrice(tokenpairs[0], lastPrice))
-
-		if GetInvestmentCount(tokenpairs[0]) < 6 && GetRecentInvestment(tokenpairs[0], Period) == 0 && InvestmentAvgPrice(tokenpairs[0], lastPrice) {
-			balance := getBalance(client, tokenpairs[1])
+		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", GetInvestmentCount(symbol), "最近是否有投资", GetRecentInvestment(symbol, Period), "持仓平均价", InvestmentAvgPrice(symbol, lastPrice))
+		if GetInvestmentCount(symbol) < 6 && GetRecentInvestment(symbol, Period) == 0 && InvestmentAvgPrice(symbol, lastPrice) {
+			balance := getBalance(client, "USDT")
 			if balance == -1 {
 				fmt.Println(symbol, err)
 				os.Exit(1)
 				return
 			}
 			//插入买单
-			InsertInvestment(tokenpairs[0], c.Amount, RoundStepSize((c.Amount/lastPrice), lotSizeMap[symbol]))
+			ret := createMarketOrder(client, symbol, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
+			if ret != nil {
+				InsertInvestment(symbol, c.Amount, RoundStepSize((c.Amount/lastPrice), lotSizeMap[symbol]))
+			}
 		}
 	}
 	if crossdown(ema10, ema26) {
 		fmt.Println(symbol, "出现死叉")
-		if GetInvestmentCount(tokenpairs[0]) == 0 {
+		if GetInvestmentCount(symbol) == 0 {
 			return
 		}
-		balance := GetSumInvestmentQuantity(tokenpairs[0])
-		if balance > lotSizeMap[symbol] && ((balance*lastPrice) > GetSumInvestment(tokenpairs[0]) ||
-			GetInvestmentCount(tokenpairs[0]) >= 6) {
+		balance := GetSumInvestmentQuantity(symbol)
+		if balance > lotSizeMap[symbol] &&
+			((balance*lastPrice) > GetSumInvestment(symbol) ||
+				GetInvestmentCount(symbol) >= 6) {
 			quantity := RoundStepSize(balance, lotSizeMap[symbol])
 			fmt.Println(symbol, "quantity", quantity)
 			// 插入卖单
+			ret := createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
+			if ret != nil {
+				ClearHistory(symbol)
+			}
 		}
 	}
 }
@@ -136,4 +143,36 @@ func CheckCross(client *binance.Client) {
 		swg.Wait()
 		time.Sleep(time.Second * 60)
 	}
+}
+
+var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func RandStr(length int) string {
+	b := make([]rune, length)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	str := fmt.Sprintf("SIM-%s", string(b))
+	return str
+}
+func createMarketOrder(client *binance.Client, pair string, quantity string, side string) (order *binance.CreateOrderResponse) {
+	var sideType binance.SideType
+	var err error
+	if side == "BUY" {
+		sideType = binance.SideTypeBuy
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(RandStr(12)).
+			Side(sideType).Type(binance.OrderTypeMarket).QuoteOrderQty(quantity).Do(context.Background(), binance.WithRecvWindow(10000))
+	} else {
+		sideType = binance.SideTypeSell
+		quantityF, _ := decimal.NewFromString(quantity)
+		step := decimal.NewFromFloat(lotSizeMap[pair])
+		quantity = strconv.FormatFloat(RoundStepSize(quantityF.InexactFloat64(), step.InexactFloat64()), 'f', -1, 64)
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(RandStr(12)).
+			Side(sideType).Type(binance.OrderTypeMarket).Quantity(quantity).Do(context.Background(), binance.WithRecvWindow(10000))
+	}
+	if err != nil {
+		print("交易出错", err)
+		return nil
+	}
+	return order
 }
