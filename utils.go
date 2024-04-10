@@ -131,6 +131,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 
 func CheckCross(client *binance.Client) {
 	for {
+		fmt.Println(time.Now(), "开启新的一启")
 		swg := sizedwaitgroup.New(1)
 		for _, s := range config.Symbols {
 			swg.Add()
