@@ -10,6 +10,7 @@ import (
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/markcheno/go-talib"
+	"github.com/remeh/sizedwaitgroup"
 	"github.com/shopspring/decimal"
 )
 
@@ -64,8 +65,8 @@ func GetSymbolInfo(client *binance.Client) {
 }
 
 func checkCross(client *binance.Client, symbol string) {
-	defer time.Sleep(4 * time.Second)
-	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval("4h").Limit(200).Do(context.Background())
+	// defer time.Sleep(4 * time.Second)
+	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(Period).Limit(200).Do(context.Background())
 	if err != nil {
 		print(err)
 		return
@@ -123,8 +124,16 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 
 func CheckCross(client *binance.Client) {
 	for {
-		for _, s := range config.SYMBOLS {
-			checkCross(client, s)
+		swg := sizedwaitgroup.New(1)
+		for _, s := range config.Symbols {
+			swg.Add()
+			go func(s string) {
+				defer swg.Done()
+				checkCross(client, s)
+				time.Sleep(time.Millisecond * 100)
+			}(s)
 		}
+		swg.Wait()
+		time.Sleep(time.Second * 60)
 	}
 }

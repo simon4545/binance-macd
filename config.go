@@ -13,12 +13,12 @@ var config *Config
 type Config struct {
 	BAPI_KEY   string   `yaml:"BAPI_KEY"`
 	BAPI_SCRET string   `yaml:"BAPI_SCRET"`
-	SYMBOLS    []string `yaml:"SYMBOLS"`
+	Symbols    []string `yaml:"SYMBOLS"`
 	Amount     float64  `yaml:"AMOUNT"`
 }
 
 func readConfig(c *Config) {
-	yamlFile, err := os.ReadFile("secret.yaml")
+	yamlFile, err := os.ReadFile("config.yaml")
 	if err != nil {
 		log.Printf("yamlFile.Get err   #%v ", err)
 	}

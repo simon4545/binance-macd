@@ -6,10 +6,8 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/adshao/go-binance/v2"
-	"github.com/remeh/sizedwaitgroup"
 	"github.com/tidwall/gjson"
 )
 
@@ -23,11 +21,15 @@ func init() {
 	priceFilterMap = make(map[string]float64)
 	config = &Config{}
 	InitConfig(config)
+	InitDB()
 	client = binance.NewClient(config.BAPI_KEY, config.BAPI_SCRET)
 }
 
 func main() {
 	GetSymbolInfo(client)
+	// HotList()
+	go CheckCross(client)
+	select {}
 }
 
 func HotList() {
@@ -58,10 +60,10 @@ func HotList() {
 			continue
 		}
 		volume24h := symbol.Get("quoteVolume").Float()
-		if len(config.SYMBOLS) > 0 && slices.Contains(config.SYMBOLS, baseAsset) {
+		if len(config.Symbols) > 0 && slices.Contains(config.Symbols, baseAsset) {
 			symbols = append(symbols, baseAsset)
 		}
-		if len(config.SYMBOLS) == 0 {
+		if len(config.Symbols) == 0 {
 			if volume24h > 5_000_000 && !slices.Contains(binanceExcludes, baseAsset) {
 				symbols = append(symbols, baseAsset)
 			}
@@ -72,14 +74,5 @@ func HotList() {
 	// 	return symbols[i].Percent > symbols[j].Percent
 	// })
 	// symbols = symbols[:100]
-	swg := sizedwaitgroup.New(4)
-
-	for _, s := range symbols {
-		swg.Add()
-		go func(s string) {
-			defer swg.Done()
-			time.Sleep(time.Millisecond * 100)
-		}(s)
-	}
-	swg.Wait()
+	CheckCross(client)
 }
