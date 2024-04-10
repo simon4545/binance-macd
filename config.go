@@ -15,6 +15,7 @@ type Config struct {
 	BAPI_SCRET string   `yaml:"BAPI_SCRET"`
 	Symbols    []string `yaml:"SYMBOLS"`
 	Amount     float64  `yaml:"AMOUNT"`
+	Exclude    []string `yaml:"EXCLUDE"`
 }
 
 func readConfig(c *Config) {
@@ -33,6 +34,7 @@ func InitConfig(c *Config) {
 	go func() {
 		for {
 			readConfig(c)
+			list()
 			time.Sleep(time.Second * 60)
 		}
 	}()

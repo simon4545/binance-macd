@@ -13,8 +13,6 @@ import (
 )
 
 var client *binance.Client
-var binanceExcludes = []string{"USDC", "TUSD", "USDP", "FDUSD", "AEUR", "ASR", "TFUEL", "OG", "WNXM", "WBETH", "WBTC", "STORJ", "SKL", "COMP",
-	"WAXP", "FOR", "JST", "SUN", "WIN", "TRX", "UTK", "TROY", "WRX", "DOCK", "C98", "EUR", "USTC", "USDS", "AUD", "DAI", "EPX"}
 var symbols []string
 
 func init() {
@@ -28,14 +26,14 @@ func init() {
 
 func main() {
 	GetSymbolInfo(client)
-	go HotList()
+	go CheckCross(client)
 	// go CheckCross(client)
 	select {}
 }
 
-func HotList() {
-	symbols = []string{}
+func list() {
 	if len(config.Symbols) > 0 {
+		symbols = []string{}
 		symbols = append(symbols, config.Symbols...)
 	} else {
 		url := "https://api.binance.com/api/v3/ticker/24hr"
@@ -54,6 +52,7 @@ func HotList() {
 
 		responseBody := string(bodyBytes)
 		value := gjson.Parse(responseBody).Array()
+		symbols = []string{}
 		for _, symbol := range value {
 			symbolCoin := symbol.Get("symbol").String()
 
@@ -65,14 +64,11 @@ func HotList() {
 				continue
 			}
 			volume24h := symbol.Get("quoteVolume").Float()
-			if len(config.Symbols) > 0 && slices.Contains(config.Symbols, baseAsset) {
+
+			if volume24h > 5_000_000 && !slices.Contains(config.Exclude, baseAsset) {
 				symbols = append(symbols, baseAsset)
 			}
-			if len(config.Symbols) == 0 {
-				if volume24h > 5_000_000 && !slices.Contains(binanceExcludes, baseAsset) {
-					symbols = append(symbols, baseAsset)
-				}
-			}
+
 		}
 	}
 	// sort.Sort(symols)
@@ -81,5 +77,5 @@ func HotList() {
 	// })
 	// symbols = symbols[:100]
 	fmt.Println("总大小", len(symbols))
-	CheckCross(client)
+
 }
