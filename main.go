@@ -13,7 +13,7 @@ import (
 )
 
 var client *binance.Client
-var binanceExcludes = []string{"USDC", "TUSD", "USDP", "FDUSD", "AEUR", "ASR", "TFUEL", "OG", "WNXM", "WBETH", "WBTC",
+var binanceExcludes = []string{"USDC", "TUSD", "USDP", "FDUSD", "AEUR", "ASR", "TFUEL", "OG", "WNXM", "WBETH", "WBTC", "STORJ", "SKL", "COMP",
 	"WAXP", "FOR", "JST", "SUN", "WIN", "TRX", "UTK", "TROY", "WRX", "DOCK", "C98", "EUR", "USTC", "USDS", "AUD", "DAI", "EPX"}
 var symbols []string
 

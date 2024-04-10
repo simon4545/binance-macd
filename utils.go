@@ -90,16 +90,18 @@ func crossdown(a, b []float64) bool {
 }
 
 func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64) {
-	var err error
+	// var err error
+	if len(closingPrices) < 30 {
+		return
+	}
 	ema10 := talib.Ema(closingPrices, 10)
 	ema26 := talib.Ema(closingPrices, 26)
 	if crossover(ema10, ema26) {
 		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", GetInvestmentCount(symbol), "最近是否有投资", GetRecentInvestment(symbol, Period), "持仓平均价", InvestmentAvgPrice(symbol, lastPrice))
 		if GetInvestmentCount(symbol) < 6 && GetRecentInvestment(symbol, Period) == 0 && InvestmentAvgPrice(symbol, lastPrice) {
 			balance := getBalance(client, "USDT")
-			if balance == -1 {
-				fmt.Println(symbol, err)
-				os.Exit(1)
+			if balance == config.Amount {
+				fmt.Println(symbol, "余额不足")
 				return
 			}
 			//插入买单
@@ -133,7 +135,7 @@ func CheckCross(client *binance.Client) {
 	for {
 		fmt.Println(time.Now(), "开启新的一启")
 		swg := sizedwaitgroup.New(4)
-		for _, s := range config.Symbols {
+		for _, s := range symbols {
 			swg.Add()
 			go func(s string) {
 				defer swg.Done()
