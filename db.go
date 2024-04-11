@@ -49,7 +49,7 @@ func InvestmentAvgPrice(currency string, price float64) bool {
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
-	return dbResult.Total == 0 || dbResult.Total/price > 1.01
+	return dbResult.Total == 0 || dbResult.Total/price > 1.05
 }
 
 func ClearHistory(currency string) {

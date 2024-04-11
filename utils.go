@@ -113,10 +113,8 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 				return
 			}
 			//插入买单
-			ret := createMarketOrder(client, pair, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
-			if ret != nil {
-				InsertInvestment(symbol, c.Amount, RoundStepSize((c.Amount*0.999/lastPrice), lotSizeMap[pair]))
-			}
+			InsertInvestment(symbol, c.Amount, RoundStepSize((c.Amount*0.999/lastPrice), lotSizeMap[pair]))
+			createMarketOrder(client, pair, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
 		}
 	}
 	// if crossdown(ema10, ema26) {
