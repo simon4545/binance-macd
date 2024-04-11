@@ -69,7 +69,7 @@ func ConvertToSeconds(s string) int {
 }
 func GetRecentInvestment(currency string, period string) int64 {
 	intPeriod := ConvertToSeconds(period)
-	current := time.Now().Add(-time.Duration(intPeriod*3) * time.Second)
+	current := time.Now().Add(-time.Duration(intPeriod*5) * time.Second)
 	var count int64
 	result := db.Model(&Investment{}).Where("created_at >= ? and currency = ?", current, currency).Count(&count)
 	if result.Error != nil {
@@ -120,5 +120,17 @@ func InsertInvestment(currency string, amount float64, quantity float64) {
 	result := db.Create(&investment)
 	if result.Error != nil {
 		log.Fatal(result.Error)
+	}
+}
+
+func MakeDBInvestment(invest Investment) {
+	var _invest Investment
+	result := db.Where("currency = ?", invest.Currency).Order("id desc").First(&_invest)
+	//如果存在记录，则更新
+	if result.RowsAffected > 0 && result.Error == nil {
+		_invest.Amount = invest.Amount
+		_invest.Quantity = invest.Quantity
+		_invest.UnitPrice = invest.UnitPrice
+		db.Save(&_invest)
 	}
 }

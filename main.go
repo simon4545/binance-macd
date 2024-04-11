@@ -25,6 +25,7 @@ func init() {
 }
 
 func main() {
+	InitWS()
 	GetSymbolInfo(client)
 	go CheckCross(client)
 	// go CheckCross(client)
