@@ -15,7 +15,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-var Period = "4h"
+var Period = "5m"
 var SecondsPerUnit map[string]int = map[string]int{"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 var lotSizeMap map[string]float64
 var priceFilterMap map[string]float64
@@ -99,11 +99,14 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 		fmt.Println("没有拿到精度")
 		return
 	}
-	ema10 := talib.Ema(closingPrices, 10)
-	ema26 := talib.Ema(closingPrices, 26)
-	if crossover(ema10, ema26) {
-		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", GetInvestmentCount(symbol), "最近是否有投资", GetRecentInvestment(symbol, Period), "持仓平均价", InvestmentAvgPrice(symbol, lastPrice))
-		if GetInvestmentCount(symbol) < 6 && GetRecentInvestment(symbol, Period) == 0 && InvestmentAvgPrice(symbol, lastPrice) {
+	_, _, hits := talib.Macd(closingPrices, 12, 26, 9)
+	// ema10 := talib.Ema(closingPrices, 10)
+	// ema26 := talib.Ema(closingPrices, 26)
+	// if crossover(ema10, ema26) {
+	if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
+		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近三根k线不能多次交易，本次进场价要低于上次进场价
+		if CheckTotalInvestment() && GetInvestmentCount(symbol) < 6 && GetRecentInvestment(symbol, Period) == 0 && InvestmentAvgPrice(symbol, lastPrice) {
+			fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", GetInvestmentCount(symbol), "最近是否有投资", GetRecentInvestment(symbol, Period), "持仓平均价", InvestmentAvgPrice(symbol, lastPrice), "总持仓数", CheckTotalInvestment())
 			balance := getBalance(client, "USDT")
 			if balance == config.Amount {
 				fmt.Println(symbol, "余额不足")
@@ -116,11 +119,12 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 			}
 		}
 	}
-	if crossdown(ema10, ema26) {
-		fmt.Println(symbol, "出现死叉")
+	// if crossdown(ema10, ema26) {
+	if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 		if GetInvestmentCount(symbol) == 0 {
 			return
 		}
+		fmt.Println(symbol, "出现死叉", "GetSumInvestment", GetSumInvestment(symbol), "GetInvestmentCount", GetInvestmentCount(symbol))
 		balance := GetSumInvestmentQuantity(symbol)
 		if balance > lotSizeMap[pair] &&
 			((balance*lastPrice) > GetSumInvestment(symbol) ||

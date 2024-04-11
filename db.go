@@ -77,6 +77,14 @@ func GetRecentInvestment(currency string, period string) int64 {
 	}
 	return count
 }
+func CheckTotalInvestment() bool {
+	var count int64
+	result := db.Model(&Investment{}).Count(&count)
+	if result.Error != nil {
+		log.Fatal(result.Error)
+	}
+	return count < 10
+}
 
 type Result struct {
 	Total float64
