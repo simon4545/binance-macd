@@ -16,7 +16,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-var orderFilledChan chan []string = make(chan []string)
 var Period = "5m"
 var SecondsPerUnit map[string]int = map[string]int{"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 var lotSizeMap map[string]float64
@@ -107,16 +106,23 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 	// ema10 := talib.Ema(closingPrices, 10)
 	// ema26 := talib.Ema(closingPrices, 26)
 	// if crossover(ema10, ema26) {
+	investCount := GetInvestmentCount(symbol)
 	if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
+
+		hasRecentInvestment := GetRecentInvestment(symbol, Period)
+		lowThanInvestmentAvgPrice := InvestmentAvgPrice(symbol, lastPrice)
+		checkTotalInvestment := CheckTotalInvestment()
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
-		if CheckTotalInvestment() && GetInvestmentCount(symbol) < 6 && GetRecentInvestment(symbol, Period) == 0 && InvestmentAvgPrice(symbol, lastPrice) {
-			fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", GetInvestmentCount(symbol), "最近是否有投资", GetRecentInvestment(symbol, Period), "持仓平均价", InvestmentAvgPrice(symbol, lastPrice), "总持仓数", CheckTotalInvestment())
+		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
+		if (investCount > 0 && investCount < 6 && hasRecentInvestment == 0 && lowThanInvestmentAvgPrice) ||
+			(checkTotalInvestment && investCount < 6 && hasRecentInvestment == 0 && lowThanInvestmentAvgPrice) {
 			balance := getBalance(client, "USDT")
 			if balance == config.Amount {
 				fmt.Println(symbol, "余额不足")
 				return
 			}
 			//插入买单
+			orderFilledChan := make(chan []string)
 			order := createMarketOrder(client, pair, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
 			if order != nil {
 				go CheckOrderById(pair, order.OrderID, orderFilledChan)
@@ -129,21 +135,22 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 	}
 	// if crossdown(ema10, ema26) {
 	if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-		if GetInvestmentCount(symbol) == 0 {
+		if investCount == 0 {
 			return
 		}
+		sumInvestment := GetSumInvestment(symbol)
 		fmt.Print(pair, lotSizeMap[pair])
 		balance := GetSumInvestmentQuantity(symbol)
-		if balance > lotSizeMap[pair] &&
-			((balance*lastPrice) > GetSumInvestment(symbol) ||
-				GetInvestmentCount(symbol) >= 6) {
-			fmt.Println(symbol, "出现死叉", "GetSumInvestment", GetSumInvestment(symbol), "GetInvestmentCount", GetInvestmentCount(symbol))
-			quantity := RoundStepSize(balance, lotSizeMap[pair])
-			fmt.Println(symbol, "quantity", quantity)
-			// 插入卖单
-			ret := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
-			if ret != nil {
-				ClearHistory(symbol)
+		if balance > lotSizeMap[pair] {
+			if (balance*lastPrice) > sumInvestment || investCount >= 6 {
+				fmt.Println(symbol, "出现死叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
+				quantity := RoundStepSize(balance, lotSizeMap[pair])
+				fmt.Println(symbol, "quantity", quantity)
+				// 插入卖单
+				ret := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
+				if ret != nil {
+					ClearHistory(symbol)
+				}
 			}
 		}
 	}
