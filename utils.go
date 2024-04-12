@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/adshao/go-binance/v2"
@@ -15,10 +16,12 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var orderFilledChan chan []string = make(chan []string)
 var Period = "5m"
 var SecondsPerUnit map[string]int = map[string]int{"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 var lotSizeMap map[string]float64
 var priceFilterMap map[string]float64
+var orderLocker sync.Mutex
 
 func RoundStepSize(quantity float64, step_size float64) float64 {
 	quantityD := decimal.NewFromFloat(quantity)
@@ -90,7 +93,8 @@ func crossdown(a, b []float64) bool {
 }
 
 func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64) {
-	// var err error
+	orderLocker.Lock()
+	defer orderLocker.Unlock()
 	pair := fmt.Sprintf("%sUSDT", symbol)
 	if len(closingPrices) < 30 {
 		return
@@ -113,8 +117,14 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 				return
 			}
 			//插入买单
-			InsertInvestment(symbol, c.Amount, RoundStepSize((c.Amount*0.999/lastPrice), lotSizeMap[pair]))
-			createMarketOrder(client, pair, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
+			order := createMarketOrder(client, pair, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
+			if order != nil {
+				go CheckOrderById(pair, order.OrderID, orderFilledChan)
+				values := <-orderFilledChan
+				amount, _ := strconv.ParseFloat(values[0], 64)
+				quantity, _ := strconv.ParseFloat(values[1], 64)
+				InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]))
+			}
 		}
 	}
 	// if crossdown(ema10, ema26) {
@@ -122,7 +132,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 		if GetInvestmentCount(symbol) == 0 {
 			return
 		}
-
+		fmt.Print(pair, lotSizeMap[pair])
 		balance := GetSumInvestmentQuantity(symbol)
 		if balance > lotSizeMap[pair] &&
 			((balance*lastPrice) > GetSumInvestment(symbol) ||
@@ -186,4 +196,21 @@ func createMarketOrder(client *binance.Client, pair string, quantity string, sid
 		return nil
 	}
 	return order
+}
+
+func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
+	var order *binance.Order
+	var err error
+	for {
+		order, err = client.NewGetOrderService().Symbol(pair).
+			OrderID(orderId).Do(context.Background())
+		if err != nil {
+			fmt.Println("GetOrderById::error::", err)
+		}
+		if order.Status == binance.OrderStatusTypeFilled {
+			break
+		}
+		time.Sleep(time.Second * 1)
+	}
+	orderFilledChan <- []string{order.CummulativeQuoteQuantity, order.ExecutedQuantity}
 }

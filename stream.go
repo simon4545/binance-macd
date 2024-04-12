@@ -78,15 +78,15 @@ func userWsHandler(event *binance.WsUserDataEvent) {
 		fmt.Println("订单成交", symbol, quoteVolume, gainVolume, price, feeCost.InexactFloat64())
 		// quantity, _ := strconv.ParseFloat(message.Volume, 64)
 		if strings.HasPrefix(message.ClientOrderId, "SIM-") && message.Side == string(binance.SideTypeBuy) {
-			fmt.Println("订单成交-量化", symbol, quoteVolume, gainVolume, price)
-			invest := Investment{
-				Operate:   "BUY",
-				Currency:  symbol,
-				Amount:    quoteVolume,
-				Quantity:  gainVolume,
-				UnitPrice: price,
-			}
-			MakeDBInvestment(invest)
+			// fmt.Println("订单成交-量化", symbol, quoteVolume, gainVolume, price)
+			// invest := Investment{
+			// 	Operate:   "BUY",
+			// 	Currency:  symbol,
+			// 	Amount:    quoteVolume,
+			// 	Quantity:  gainVolume,
+			// 	UnitPrice: price,
+			// }
+			// MakeDBInvestment(invest)
 		}
 
 	}
