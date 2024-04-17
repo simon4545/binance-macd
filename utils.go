@@ -16,7 +16,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-var Period = "5m"
 var SecondsPerUnit map[string]int = map[string]int{"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 var lotSizeMap map[string]float64
 var priceFilterMap map[string]float64
@@ -69,7 +68,7 @@ func GetSymbolInfo(client *binance.Client) {
 
 func checkCross(client *binance.Client, symbol string) {
 	// defer time.Sleep(4 * time.Second)
-	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(Period).Limit(200).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(config.Period).Limit(200).Do(context.Background())
 	if err != nil {
 		print(err)
 		return
@@ -102,20 +101,23 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 		fmt.Println("没有拿到精度")
 		return
 	}
-	_, _, hits := talib.Macd(closingPrices, 12, 26, 9)
-	// ema10 := talib.Ema(closingPrices, 10)
-	// ema26 := talib.Ema(closingPrices, 26)
-	// if crossover(ema10, ema26) {
+	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
+	ema10 := talib.Ema(closingPrices, 10)
+	ema26 := talib.Ema(closingPrices, 26)
 	investCount := GetInvestmentCount(symbol)
-	if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
-
-		hasRecentInvestment := GetRecentInvestment(symbol, Period)
+	level := config.Level
+	if crossover(ema10, ema26) {
+		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
+		hasRecentInvestment := GetRecentInvestment(symbol, config.Period)
 		lowThanInvestmentAvgPrice := InvestmentAvgPrice(symbol, lastPrice)
 		checkTotalInvestment := CheckTotalInvestment()
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
 		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
-		if (investCount > 0 && investCount < 6 && hasRecentInvestment == 0 && lowThanInvestmentAvgPrice) ||
-			(checkTotalInvestment && investCount < 6 && hasRecentInvestment == 0 && lowThanInvestmentAvgPrice) {
+		if investCount < level && hasRecentInvestment == 0 && lowThanInvestmentAvgPrice {
+			if investCount <= 0 && !checkTotalInvestment {
+				fmt.Println(symbol, "投资达到总数")
+				return
+			}
 			balance := getBalance(client, "USDT")
 			if balance == config.Amount {
 				fmt.Println(symbol, "余额不足")
@@ -133,16 +135,16 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 			}
 		}
 	}
-	// if crossdown(ema10, ema26) {
-	if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
+	if crossdown(ema10, ema26) {
+		// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
+		fmt.Print("出现死叉", pair, lotSizeMap[pair])
 		if investCount == 0 {
 			return
 		}
 		sumInvestment := GetSumInvestment(symbol)
-		fmt.Print(pair, lotSizeMap[pair])
 		balance := GetSumInvestmentQuantity(symbol)
 		if balance > lotSizeMap[pair] {
-			if (balance*lastPrice) > sumInvestment || investCount >= 6 {
+			if (balance*lastPrice) > sumInvestment*float64(investCount/2.0) || investCount >= level {
 				fmt.Println(symbol, "出现死叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
 				quantity := RoundStepSize(balance, lotSizeMap[pair])
 				fmt.Println(symbol, "quantity", quantity)

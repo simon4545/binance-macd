@@ -83,7 +83,7 @@ func CheckTotalInvestment() bool {
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
-	return count < 10
+	return count <= config.Level
 }
 
 type Result struct {

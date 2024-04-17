@@ -16,6 +16,8 @@ type Config struct {
 	Symbols    []string `yaml:"SYMBOLS"`
 	Amount     float64  `yaml:"AMOUNT"`
 	Exclude    []string `yaml:"EXCLUDE"`
+	Period     string   `yaml:"PERIOD"`
+	Level      int64    `yaml:"LEVEL"`
 }
 
 func readConfig(c *Config) {
@@ -27,7 +29,12 @@ func readConfig(c *Config) {
 	if err != nil {
 		log.Fatalf("Unmarshal: %v", err)
 	}
-
+	if c.Level == 0 {
+		c.Level = 20
+	}
+	if c.Period == "" {
+		c.Period = "1m"
+	}
 }
 func InitConfig(c *Config) {
 	readConfig(c)
