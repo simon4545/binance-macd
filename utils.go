@@ -144,7 +144,8 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 		sumInvestment := GetSumInvestment(symbol)
 		balance := GetSumInvestmentQuantity(symbol)
 		if balance > lotSizeMap[pair] {
-			if (balance*lastPrice) > sumInvestment*float64(investCount/2.0) || investCount >= level {
+			rate := float64(investCount/2.0)/100.0 + 1
+			if (balance*lastPrice) > sumInvestment*rate || investCount >= level {
 				fmt.Println(symbol, "出现死叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
 				quantity := RoundStepSize(balance, lotSizeMap[pair])
 				fmt.Println(symbol, "quantity", quantity)
@@ -171,7 +172,7 @@ func CheckCross(client *binance.Client) {
 			}(s)
 		}
 		swg.Wait()
-		time.Sleep(time.Second * 60)
+		time.Sleep(time.Second * 10)
 	}
 }
 
