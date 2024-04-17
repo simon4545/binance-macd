@@ -105,6 +105,9 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 	ema10 := talib.Ema(closingPrices, 10)
 	ema26 := talib.Ema(closingPrices, 26)
 	investCount := GetInvestmentCount(symbol)
+	sumInvestment := GetSumInvestment(symbol)
+	balance := GetSumInvestmentQuantity(symbol)
+	rate := float64(investCount/2.0)/100.0 + 1
 	level := config.Level
 	if crossover(ema10, ema26) {
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
@@ -135,25 +138,18 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 			}
 		}
 	}
-	if crossdown(ema10, ema26) {
-		// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-		fmt.Print("出现死叉", pair, lotSizeMap[pair])
-		if investCount == 0 {
-			return
-		}
-		sumInvestment := GetSumInvestment(symbol)
-		balance := GetSumInvestmentQuantity(symbol)
-		if balance > lotSizeMap[pair] {
-			rate := float64(investCount/2.0)/100.0 + 1
-			if (balance*lastPrice) > sumInvestment*rate || investCount >= level {
-				fmt.Println(symbol, "出现死叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
-				quantity := RoundStepSize(balance, lotSizeMap[pair])
-				fmt.Println(symbol, "quantity", quantity)
-				// 插入卖单
-				ret := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
-				if ret != nil {
-					ClearHistory(symbol)
-				}
+	if investCount > 0 && balance > lotSizeMap[pair] {
+		if (balance*lastPrice) > sumInvestment*1.03 || (crossdown(ema10, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
+			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
+			// fmt.Print("出现死叉", lotSizeMap[pair])
+
+			fmt.Println(symbol, "出现死叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
+			quantity := RoundStepSize(balance, lotSizeMap[pair])
+			fmt.Println(symbol, "quantity", quantity)
+			// 插入卖单
+			ret := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
+			if ret != nil {
+				ClearHistory(symbol)
 			}
 		}
 	}
