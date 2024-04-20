@@ -132,14 +132,18 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 			if order != nil {
 				go CheckOrderById(pair, order.OrderID, orderFilledChan)
 				values := <-orderFilledChan
-				amount, _ := strconv.ParseFloat(values[0], 64)
-				quantity, _ := strconv.ParseFloat(values[1], 64)
-				InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]))
+				if len(values) == 2 {
+					fmt.Println(symbol, values)
+					amount, _ := strconv.ParseFloat(values[0], 64)
+					quantity, _ := strconv.ParseFloat(values[1], 64)
+					quantity = quantity * 0.999
+					InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]))
+				}
 			}
 		}
 	}
 	if investCount > 0 && balance > lotSizeMap[pair] {
-		if (balance*lastPrice) > sumInvestment*1.03 || (crossdown(ema10, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
+		if (balance*lastPrice) >= sumInvestment*1.02 || (crossdown(ema10, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			// fmt.Print("出现死叉", lotSizeMap[pair])
 
@@ -218,5 +222,6 @@ func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
 		}
 		time.Sleep(time.Second * 1)
 	}
+	fmt.Println(order)
 	orderFilledChan <- []string{order.CummulativeQuoteQuantity, order.ExecutedQuantity}
 }

@@ -5,8 +5,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/tidwall/gjson"
@@ -15,7 +17,15 @@ import (
 var client *binance.Client
 var symbols []string
 
+func check() {
+	currentTime := time.Now()
+	targetYear := time.Date(2024, time.June, 1, 0, 0, 0, 0, currentTime.Location())
+	if currentTime.After(targetYear) {
+		os.Exit(0) // 使用非零状态码退出，表示程序是有意退出的
+	}
+}
 func init() {
+	check()
 	lotSizeMap = make(map[string]float64)
 	priceFilterMap = make(map[string]float64)
 	config = &Config{}

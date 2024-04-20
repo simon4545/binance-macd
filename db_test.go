@@ -8,6 +8,10 @@ import (
 
 var testChan chan []string
 
+func TestQu(t *testing.T) {
+	value := RoundStepSize(64.4576, 0.01)
+	fmt.Println(value)
+}
 func TestCheckTotalInvestment(t *testing.T) {
 	CheckTotalInvestment()
 }
