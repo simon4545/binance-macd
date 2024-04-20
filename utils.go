@@ -136,8 +136,9 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 					fmt.Println(symbol, values)
 					amount, _ := strconv.ParseFloat(values[0], 64)
 					quantity, _ := strconv.ParseFloat(values[1], 64)
+					price := RoundStepSize(amount/quantity, priceFilterMap[pair])
 					quantity = quantity * 0.999
-					InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]))
+					InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]), price)
 				}
 			}
 		}

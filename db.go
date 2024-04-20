@@ -45,7 +45,7 @@ func GetInvestmentCount(currency string) int64 {
 
 func InvestmentAvgPrice(currency string, price float64) bool {
 	dbResult := &Result{}
-	result := db.Model(&Investment{}).Select("(amount/quantity) as Total").Where("currency = ?", currency).Order("id DESC").Limit(1).Scan(dbResult)
+	result := db.Model(&Investment{}).Select("unit_price as Total").Where("currency = ?", currency).Order("id DESC").Limit(1).Scan(dbResult)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
@@ -109,13 +109,13 @@ func GetSumInvestmentQuantity(currency string) float64 {
 	}
 	return dbResult.Total
 }
-func InsertInvestment(currency string, amount float64, quantity float64) {
+func InsertInvestment(currency string, amount float64, quantity, price float64) {
 	investment := Investment{
 		Operate:   "BUY",
 		Currency:  currency,
 		Amount:    amount,
 		Quantity:  quantity,
-		UnitPrice: amount / quantity,
+		UnitPrice: price,
 	}
 	result := db.Create(&investment)
 	if result.Error != nil {
