@@ -85,7 +85,7 @@ func checkAtr(client *binance.Client, symbol string) {
 	}
 	atr := talib.Atr(highPrices, lowPrices, closingPrices, 12)
 	atrMap[symbol] = atr[len(atr)-1]
-	fmt.Println(symbol, "atr", atrMap[symbol])
+	// fmt.Println(symbol, "atr", atrMap[symbol])
 }
 func CheckAtr(client *binance.Client) {
 	for {
@@ -134,7 +134,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 	if len(closingPrices) < 30 {
 		return
 	}
-	if lotSizeMap[pair] == 0 {
+	if lotSizeMap[pair] == 0 || atrMap[symbol] == 0 {
 		fmt.Println("没有拿到精度")
 		return
 	}
@@ -182,7 +182,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 		}
 	}
 	if investCount > 0 && balance > lotSizeMap[pair] {
-		atrRate := atrMap[symbol] / lastPrice * 1.5
+		atrRate := atrMap[symbol] / lastPrice
 		if (balance*lastPrice) >= sumInvestment*(1+atrRate) || (crossdown(ema10, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			// fmt.Print("出现死叉", lotSizeMap[pair])

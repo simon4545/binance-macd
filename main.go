@@ -39,7 +39,7 @@ func init() {
 func main() {
 	InitWS()
 	GetSymbolInfo(client)
-	CheckAtr(client)
+	// CheckAtr(client)
 	go CheckAtr(client)
 	go CheckCross(client)
 	// go CheckCross(client)
