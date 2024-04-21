@@ -19,6 +19,7 @@ import (
 var SecondsPerUnit map[string]int = map[string]int{"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 var lotSizeMap map[string]float64
 var priceFilterMap map[string]float64
+
 var orderLocker sync.Mutex
 
 func RoundStepSize(quantity float64, step_size float64) float64 {
@@ -65,7 +66,37 @@ func GetSymbolInfo(client *binance.Client) {
 		}
 	}
 }
-
+func checkAtr(client *binance.Client, symbol string) {
+	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval("4h").Limit(100).Do(context.Background())
+	if err != nil {
+		print(err)
+		return
+	}
+	closingPrices := []float64{}
+	highPrices := []float64{}
+	lowPrices := []float64{}
+	for _, kline := range klines {
+		close, _ := strconv.ParseFloat(kline.Close, 64)
+		high, _ := strconv.ParseFloat(kline.High, 64)
+		low, _ := strconv.ParseFloat(kline.Low, 64)
+		closingPrices = append(closingPrices, close)
+		highPrices = append(highPrices, high)
+		lowPrices = append(lowPrices, low)
+	}
+	atr := talib.Atr(highPrices, lowPrices, closingPrices, 12)
+	atrMap[symbol] = atr[len(atr)-1]
+	fmt.Println(symbol, "atr", atrMap[symbol])
+}
+func CheckAtr(client *binance.Client) {
+	for {
+		fmt.Println(time.Now(), "开启新的一启")
+		for _, s := range symbols {
+			checkAtr(client, s)
+			time.Sleep(time.Millisecond * 100)
+		}
+		time.Sleep(time.Second * 20)
+	}
+}
 func checkCross(client *binance.Client, symbol string) {
 	// defer time.Sleep(4 * time.Second)
 	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(config.Period).Limit(200).Do(context.Background())
@@ -74,12 +105,18 @@ func checkCross(client *binance.Client, symbol string) {
 		return
 	}
 	closingPrices := []float64{}
+	highPrices := []float64{}
+	lowPrices := []float64{}
 	for _, kline := range klines {
 		close, _ := strconv.ParseFloat(kline.Close, 64)
+		high, _ := strconv.ParseFloat(kline.High, 64)
+		low, _ := strconv.ParseFloat(kline.Low, 64)
 		closingPrices = append(closingPrices, close)
+		highPrices = append(highPrices, high)
+		lowPrices = append(lowPrices, low)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
-	Handle(config, symbol, lastPrice, closingPrices)
+	Handle(config, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 }
 
 func crossover(a, b []float64) bool {
@@ -90,7 +127,7 @@ func crossdown(a, b []float64) bool {
 	return a[len(a)-2] >= b[len(b)-2] && a[len(a)-1] < b[len(b)-1]
 }
 
-func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64) {
+func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64) {
 	orderLocker.Lock()
 	defer orderLocker.Unlock()
 	pair := fmt.Sprintf("%sUSDT", symbol)
@@ -104,6 +141,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
 	ema10 := talib.Ema(closingPrices, 10)
 	ema26 := talib.Ema(closingPrices, 26)
+
 	investCount := GetInvestmentCount(symbol)
 	sumInvestment := GetSumInvestment(symbol)
 	balance := GetSumInvestmentQuantity(symbol)
@@ -144,7 +182,8 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices []float64
 		}
 	}
 	if investCount > 0 && balance > lotSizeMap[pair] {
-		if (balance*lastPrice) >= sumInvestment*1.02 || (crossdown(ema10, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
+		atrRate := atrMap[symbol] / lastPrice * 1.5
+		if (balance*lastPrice) >= sumInvestment*(1+atrRate) || (crossdown(ema10, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			// fmt.Print("出现死叉", lotSizeMap[pair])
 

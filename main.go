@@ -16,6 +16,7 @@ import (
 
 var client *binance.Client
 var symbols []string
+var atrMap map[string]float64
 
 func check() {
 	currentTime := time.Now()
@@ -28,6 +29,7 @@ func init() {
 	check()
 	lotSizeMap = make(map[string]float64)
 	priceFilterMap = make(map[string]float64)
+	atrMap = make(map[string]float64)
 	config = &Config{}
 	InitConfig(config)
 	InitDB()
@@ -37,6 +39,8 @@ func init() {
 func main() {
 	InitWS()
 	GetSymbolInfo(client)
+	CheckAtr(client)
+	go CheckAtr(client)
 	go CheckCross(client)
 	// go CheckCross(client)
 	select {}
