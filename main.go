@@ -41,7 +41,7 @@ func init() {
 }
 
 func main() {
-	// InitWS()
+	InitWS()
 	GetSymbolInfo(client)
 	// CheckAtr(client)
 	go CheckAtr(client)

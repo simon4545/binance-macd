@@ -55,12 +55,14 @@ func GetSymbolInfo(client *futures.Client) {
 	}
 	for _, s := range info.Symbols {
 		// if strings.HasSuffix(s.Symbol, "USDT") {
-		lotSizeFilter := s.LotSizeFilter()
-		quantityTickSize, _ := strconv.ParseFloat(lotSizeFilter.StepSize, 64)
-		lotSizeMap[s.Symbol] = quantityTickSize
-		priceFilter := s.PriceFilter()
-		priceTickSize, _ := strconv.ParseFloat(priceFilter.TickSize, 64)
-		priceFilterMap[s.Symbol] = priceTickSize
+		if s.Status == string(futures.SymbolStatusTypeTrading) {
+			lotSizeFilter := s.LotSizeFilter()
+			quantityTickSize, _ := strconv.ParseFloat(lotSizeFilter.StepSize, 64)
+			lotSizeMap[s.Symbol] = quantityTickSize
+			priceFilter := s.PriceFilter()
+			priceTickSize, _ := strconv.ParseFloat(priceFilter.TickSize, 64)
+			priceFilterMap[s.Symbol] = priceTickSize
+		}
 		// return
 		// }
 	}
@@ -75,7 +77,12 @@ func GetSymbolInfo(client *futures.Client) {
 	}
 }
 func checkAtr(client *futures.Client, symbol string) {
-	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval("1h").Limit(100).Do(context.Background())
+	pair := fmt.Sprintf("%sUSDT", symbol)
+	if lotSizeMap[pair] == 0 {
+		fmt.Println("交易对", pair, "不可交易")
+		return
+	}
+	klines, err := client.NewKlinesService().Symbol(pair).Interval("1h").Limit(100).Do(context.Background())
 	if err != nil {
 		print(err)
 		return
@@ -143,7 +150,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 		return
 	}
 	//TODO 如果FDUSD交易对，fee本身就是0，这里需要做一次单独处理
-	if lotSizeMap[pair] == 0 || atrMap[symbol] == 0 || feeMap[pair] == 0 {
+	if lotSizeMap[pair] == 0 || atrMap[symbol] == 0 || feeMap[symbol] == 0 {
 		fmt.Println("没有拿到精度")
 		return
 	}
@@ -179,11 +186,11 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 			if order != nil {
 				go CheckOrderById(pair, order.OrderID, orderFilledChan)
 				values := <-orderFilledChan
-				if len(values) == 2 {
+				if len(values) == 3 {
 					fmt.Println(symbol, values)
 					amount, _ := strconv.ParseFloat(values[0], 64)
 					quantity, _ := strconv.ParseFloat(values[1], 64)
-					price := RoundStepSize(amount/quantity, priceFilterMap[pair])
+					price, _ := strconv.ParseFloat(values[2], 64)
 					quantity = quantity * (1 - feeMap[pair])
 					InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]), price)
 				}
@@ -216,8 +223,14 @@ func CheckCross(client *futures.Client) {
 			swg.Add()
 			go func(s string) {
 				defer swg.Done()
-				checkCross(client, s)
-				time.Sleep(time.Millisecond * 100)
+				pair := fmt.Sprintf("%sUSDT", s)
+				if lotSizeMap[pair] != 0 {
+					checkCross(client, s)
+					time.Sleep(time.Millisecond * 100)
+				} else {
+					fmt.Println("交易对", pair, "不可交易")
+					return
+				}
 			}(s)
 		}
 		swg.Wait()
@@ -271,5 +284,5 @@ func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
 		time.Sleep(time.Second * 1)
 	}
 	fmt.Println(order)
-	orderFilledChan <- []string{order.CumQuote, order.CumQuote, order.AvgPrice}
+	orderFilledChan <- []string{order.CumQuote, order.CumQuantity, order.AvgPrice}
 }
