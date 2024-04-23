@@ -74,7 +74,13 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// if strings.HasPrefix(message.ClientOrderID, "SIM-") && message.Side == futures.SideTypeBuy {
 		// 	orderFilledChan <- []string{order.CumQuote, message.AccumulatedFilledQty, message.LastFilledPrice}
 		// }
-		if strings.HasPrefix(message.ClientOrderID, "SIM-") && message.Side == futures.SideTypeSell {
+		// MARKET 市价单
+		// LIMIT 限价单
+		// STOP 止损单
+		// TAKE_PROFIT 止盈单
+		// LIQUIDATION 强平单
+		// strings.HasPrefix(message.ClientOrderID, "SIM-") &&
+		if message.Side == futures.SideTypeSell {
 			fmt.Println("订单成交-量化", symbol, quoteVolume, price)
 			symbol := message.Symbol[:len(message.Symbol)-4]
 			ClearHistory(symbol)

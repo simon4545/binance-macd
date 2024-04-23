@@ -265,7 +265,7 @@ func createMarketOrder(client *futures.Client, pair string, quantity string, sid
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	}
 	if err != nil {
-		print("交易出错", err)
+		fmt.Println("交易出错", err)
 		return nil
 	}
 	return order

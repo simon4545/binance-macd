@@ -1,4 +1,4 @@
-go build -ldflags="-s -w" -o binancemacd
-#upx -9 binancemacd
-pm2 reload binancemacd
-pm2 logs binancemacd
+go build -ldflags="-s -w" -o bfuture
+#upx -9 bfuture
+pm2 reload bfuture
+pm2 logs bfuture
