@@ -181,8 +181,9 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 				return
 			}
 			//插入买单
+			quantity := RoundStepSize(config.Amount/lastPrice, lotSizeMap[pair])
 			orderFilledChan := make(chan []string)
-			order := createMarketOrder(client, pair, strconv.FormatFloat(config.Amount, 'f', -1, 64), "BUY")
+			order := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "BUY")
 			if order != nil {
 				go CheckOrderById(pair, order.OrderID, orderFilledChan)
 				values := <-orderFilledChan

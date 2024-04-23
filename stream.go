@@ -82,7 +82,6 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// strings.HasPrefix(message.ClientOrderID, "SIM-") &&
 		if message.Side == futures.SideTypeSell {
 			fmt.Println("订单成交-量化", symbol, quoteVolume, price)
-			symbol := message.Symbol[:len(message.Symbol)-4]
 			ClearHistory(symbol)
 		}
 	}
