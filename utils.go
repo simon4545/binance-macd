@@ -188,10 +188,11 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 				values := <-orderFilledChan
 				if len(values) == 3 {
 					fmt.Println(symbol, values)
+					//TODO 市价单查不出交易的数量只能返回平均价和总投入
 					amount, _ := strconv.ParseFloat(values[0], 64)
-					quantity, _ := strconv.ParseFloat(values[1], 64)
 					price, _ := strconv.ParseFloat(values[2], 64)
-					quantity = quantity * (1 - feeMap[pair])
+					quantity := amount / price
+					// quantity = quantity * (1 - feeMap[pair])
 					InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]), price)
 				}
 			}

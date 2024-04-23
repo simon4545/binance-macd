@@ -71,17 +71,13 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		quoteVolume, _ := strconv.ParseFloat(message.AccumulatedFilledQty, 64)
 		fmt.Println("订单成交", symbol, quoteVolume, price, feeCost.InexactFloat64(), "完整信息", message)
 		// quantity, _ := strconv.ParseFloat(message.Volume, 64)
+		// if strings.HasPrefix(message.ClientOrderID, "SIM-") && message.Side == futures.SideTypeBuy {
+		// 	orderFilledChan <- []string{order.CumQuote, message.AccumulatedFilledQty, message.LastFilledPrice}
+		// }
 		if strings.HasPrefix(message.ClientOrderID, "SIM-") && message.Side == futures.SideTypeSell {
 			fmt.Println("订单成交-量化", symbol, quoteVolume, price)
-			// invest := Investment{
-			// 	Operate:   "BUY",
-			// 	Currency:  symbol,
-			// 	Amount:    quoteVolume,
-			// 	Quantity:  gainVolume,
-			// 	UnitPrice: price,
-			// }
-			// MakeDBInvestment(invest)
+			symbol := message.Symbol[:len(message.Symbol)-4]
+			ClearHistory(symbol)
 		}
-
 	}
 }
