@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adshao/go-binance/v2"
+	"github.com/adshao/go-binance/v2/futures"
 	"github.com/markcheno/go-talib"
 	"github.com/remeh/sizedwaitgroup"
 	"github.com/shopspring/decimal"
@@ -32,23 +32,22 @@ func RoundStepSizeDecimal(quantity float64, step_size float64) decimal.Decimal {
 	return quantityD.Sub(quantityD.Mod(decimal.NewFromFloat(step_size)))
 }
 
-func getBalance(client *binance.Client, token string) float64 {
-	res, err := client.NewGetAccountService().Do(context.Background())
+func getBalance(client *futures.Client, token string) float64 {
+	res, err := client.NewGetBalanceService().Do(context.Background())
 	if err != nil {
 		fmt.Println(err)
 		return -1
 	}
 	balance := 0.0
-	// fmt.Println(res.Balances)
-	for _, s := range res.Balances {
+	for _, s := range res {
 		if s.Asset == token {
-			balance, _ = strconv.ParseFloat(s.Free, 64)
+			balance, _ = strconv.ParseFloat(s.AvailableBalance, 64)
 		}
 	}
 	return balance
 }
 
-func GetSymbolInfo(client *binance.Client) {
+func GetSymbolInfo(client *futures.Client) {
 	info, err := client.NewExchangeInfoService().Do(context.Background())
 	if err != nil {
 		print("Error fetching exchange info:", err)
@@ -65,18 +64,17 @@ func GetSymbolInfo(client *binance.Client) {
 		// return
 		// }
 	}
-
-	rate, err := client.NewTradeFeeService().Do(context.Background())
-	if err != nil {
-		print("Error fetching trade fee:", err)
-		os.Exit(1)
-	}
-	for _, s := range rate {
-		fee, _ := strconv.ParseFloat(s.TakerCommission, 64)
-		feeMap[s.Symbol] = fee
+	for _, s := range config.Symbols {
+		rate, err := client.NewCommissionRateService().Symbol(s + "USDT").Do(context.Background())
+		if err != nil {
+			print("Error fetching trade fee:", err)
+			os.Exit(1)
+		}
+		fee, _ := strconv.ParseFloat(rate.TakerCommissionRate, 64)
+		feeMap[s] = fee
 	}
 }
-func checkAtr(client *binance.Client, symbol string) {
+func checkAtr(client *futures.Client, symbol string) {
 	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval("1h").Limit(100).Do(context.Background())
 	if err != nil {
 		print(err)
@@ -97,7 +95,7 @@ func checkAtr(client *binance.Client, symbol string) {
 	atrMap[symbol] = atr[len(atr)-1]
 	// fmt.Println(symbol, "atr", atrMap[symbol])
 }
-func CheckAtr(client *binance.Client) {
+func CheckAtr(client *futures.Client) {
 	for {
 		fmt.Println(time.Now(), "开启新的一启")
 		for _, s := range symbols {
@@ -107,7 +105,7 @@ func CheckAtr(client *binance.Client) {
 		time.Sleep(time.Second * 20)
 	}
 }
-func checkCross(client *binance.Client, symbol string) {
+func checkCross(client *futures.Client, symbol string) {
 	// defer time.Sleep(4 * time.Second)
 	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(config.Period).Limit(200).Do(context.Background())
 	if err != nil {
@@ -210,7 +208,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 	}
 }
 
-func CheckCross(client *binance.Client) {
+func CheckCross(client *futures.Client) {
 	for {
 		fmt.Println(time.Now(), "开启新的一启")
 		swg := sizedwaitgroup.New(4)
@@ -237,20 +235,20 @@ func RandStr(length int) string {
 	str := fmt.Sprintf("SIM-%s", string(b))
 	return str
 }
-func createMarketOrder(client *binance.Client, pair string, quantity string, side string) (order *binance.CreateOrderResponse) {
-	var sideType binance.SideType
+func createMarketOrder(client *futures.Client, pair string, quantity string, side string) (order *futures.CreateOrderResponse) {
+	var sideType futures.SideType
 	var err error
 	if side == "BUY" {
-		sideType = binance.SideTypeBuy
+		sideType = futures.SideTypeBuy
 		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(RandStr(12)).
-			Side(sideType).Type(binance.OrderTypeMarket).QuoteOrderQty(quantity).Do(context.Background(), binance.WithRecvWindow(10000))
+			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	} else {
-		sideType = binance.SideTypeSell
+		sideType = futures.SideTypeSell
 		quantityF, _ := decimal.NewFromString(quantity)
 		step := decimal.NewFromFloat(lotSizeMap[pair])
 		quantity = strconv.FormatFloat(RoundStepSize(quantityF.InexactFloat64(), step.InexactFloat64()), 'f', -1, 64)
 		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(RandStr(12)).
-			Side(sideType).Type(binance.OrderTypeMarket).Quantity(quantity).Do(context.Background(), binance.WithRecvWindow(10000))
+			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	}
 	if err != nil {
 		print("交易出错", err)
@@ -260,19 +258,18 @@ func createMarketOrder(client *binance.Client, pair string, quantity string, sid
 }
 
 func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
-	var order *binance.Order
+	var order *futures.Order
 	var err error
 	for {
-		order, err = client.NewGetOrderService().Symbol(pair).
-			OrderID(orderId).Do(context.Background())
+		order, err = client.NewGetOrderService().Symbol(pair).OrderID(orderId).Do(context.Background())
 		if err != nil {
 			fmt.Println("GetOrderById::error::", err)
 		}
-		if order.Status == binance.OrderStatusTypeFilled {
+		if order.Status == futures.OrderStatusTypeFilled {
 			break
 		}
 		time.Sleep(time.Second * 1)
 	}
 	fmt.Println(order)
-	orderFilledChan <- []string{order.CummulativeQuoteQuantity, order.ExecutedQuantity}
+	orderFilledChan <- []string{order.CumQuote, order.CumQuote, order.AvgPrice}
 }

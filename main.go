@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2"
+	"github.com/adshao/go-binance/v2/futures"
 	"github.com/tidwall/gjson"
 )
 
-var client *binance.Client
+var client *futures.Client
 var symbols []string
 var atrMap map[string]float64
 
@@ -36,11 +37,11 @@ func init() {
 	config = &Config{}
 	InitConfig(config)
 	InitDB()
-	client = binance.NewClient(config.BAPI_KEY, config.BAPI_SCRET)
+	client = binance.NewFuturesClient(config.BAPI_KEY, config.BAPI_SCRET)
 }
 
 func main() {
-	InitWS()
+	// InitWS()
 	GetSymbolInfo(client)
 	// CheckAtr(client)
 	go CheckAtr(client)
