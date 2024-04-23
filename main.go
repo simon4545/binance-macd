@@ -27,9 +27,12 @@ func check() {
 }
 func init() {
 	check()
+
 	lotSizeMap = make(map[string]float64)
 	priceFilterMap = make(map[string]float64)
 	atrMap = make(map[string]float64)
+	feeMap = make(map[string]float64)
+
 	config = &Config{}
 	InitConfig(config)
 	InitDB()

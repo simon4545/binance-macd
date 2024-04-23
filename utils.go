@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 var SecondsPerUnit map[string]int = map[string]int{"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 var lotSizeMap map[string]float64
 var priceFilterMap map[string]float64
+var feeMap map[string]float64
 
 var orderLocker sync.Mutex
 
@@ -55,19 +55,29 @@ func GetSymbolInfo(client *binance.Client) {
 		os.Exit(1)
 	}
 	for _, s := range info.Symbols {
-		if strings.HasSuffix(s.Symbol, "USDT") {
-			lotSizeFilter := s.LotSizeFilter()
-			quantityTickSize, _ := strconv.ParseFloat(lotSizeFilter.StepSize, 64)
-			lotSizeMap[s.Symbol] = quantityTickSize
-			priceFilter := s.PriceFilter()
-			priceTickSize, _ := strconv.ParseFloat(priceFilter.TickSize, 64)
-			priceFilterMap[s.Symbol] = priceTickSize
-			// return
-		}
+		// if strings.HasSuffix(s.Symbol, "USDT") {
+		lotSizeFilter := s.LotSizeFilter()
+		quantityTickSize, _ := strconv.ParseFloat(lotSizeFilter.StepSize, 64)
+		lotSizeMap[s.Symbol] = quantityTickSize
+		priceFilter := s.PriceFilter()
+		priceTickSize, _ := strconv.ParseFloat(priceFilter.TickSize, 64)
+		priceFilterMap[s.Symbol] = priceTickSize
+		// return
+		// }
+	}
+
+	rate, err := client.NewTradeFeeService().Do(context.Background())
+	if err != nil {
+		print("Error fetching trade fee:", err)
+		os.Exit(1)
+	}
+	for _, s := range rate {
+		fee, _ := strconv.ParseFloat(s.TakerCommission, 64)
+		feeMap[s.Symbol] = fee
 	}
 }
 func checkAtr(client *binance.Client, symbol string) {
-	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval("4h").Limit(100).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval("1h").Limit(100).Do(context.Background())
 	if err != nil {
 		print(err)
 		return
@@ -134,12 +144,13 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 	if len(closingPrices) < 30 {
 		return
 	}
-	if lotSizeMap[pair] == 0 || atrMap[symbol] == 0 {
+	//TODO 如果FDUSD交易对，fee本身就是0，这里需要做一次单独处理
+	if lotSizeMap[pair] == 0 || atrMap[symbol] == 0 || feeMap[pair] == 0 {
 		fmt.Println("没有拿到精度")
 		return
 	}
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
-	ema10 := talib.Ema(closingPrices, 10)
+	ema6 := talib.Ema(closingPrices, 6)
 	ema26 := talib.Ema(closingPrices, 26)
 
 	investCount := GetInvestmentCount(symbol)
@@ -147,7 +158,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 	balance := GetSumInvestmentQuantity(symbol)
 	rate := float64(investCount/2.0)/100.0 + 1
 	level := config.Level
-	if crossover(ema10, ema26) {
+	if crossover(ema6, ema26) {
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
 		hasRecentInvestment := GetRecentInvestment(symbol, config.Period)
 		lowThanInvestmentAvgPrice := InvestmentAvgPrice(symbol, lastPrice)
@@ -175,7 +186,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 					amount, _ := strconv.ParseFloat(values[0], 64)
 					quantity, _ := strconv.ParseFloat(values[1], 64)
 					price := RoundStepSize(amount/quantity, priceFilterMap[pair])
-					quantity = quantity * 0.999
+					quantity = quantity * (1 - feeMap[pair])
 					InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]), price)
 				}
 			}
@@ -183,7 +194,7 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 	}
 	if investCount > 0 && balance > lotSizeMap[pair] {
 		atrRate := atrMap[symbol] / lastPrice
-		if (balance*lastPrice) >= sumInvestment*(1+atrRate) || (crossdown(ema10, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
+		if (balance*lastPrice) >= sumInvestment*(1+atrRate) || (crossdown(ema6, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			// fmt.Print("出现死叉", lotSizeMap[pair])
 

@@ -69,9 +69,7 @@ func userWsHandler(event *binance.WsUserDataEvent) {
 		symbol := message.Symbol[:len(message.Symbol)-4]
 		feeCost, _ := decimal.NewFromString(message.FeeCost)
 		filledVolume, _ := decimal.NewFromString(message.FilledVolume)
-		// gainVolume := filledVolume.Sub(feeCost).InexactFloat64()
-		decimal.NewFromInt(99)
-		gainVolume := filledVolume.Mul(decimal.NewFromFloat(0.999)).InexactFloat64()
+		gainVolume := filledVolume.Mul(decimal.NewFromFloat(1 - feeMap[message.Symbol])).InexactFloat64()
 		step := decimal.NewFromFloat(lotSizeMap[message.Symbol])
 		gainVolume = RoundStepSizeDecimal(gainVolume, step.InexactFloat64()).InexactFloat64()
 		quoteVolume, _ := strconv.ParseFloat(message.FilledQuoteVolume, 64)
