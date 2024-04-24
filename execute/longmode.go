@@ -1,4 +1,4 @@
-package main
+package execute
 
 import (
 	"context"
@@ -9,17 +9,20 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/markcheno/go-talib"
 	"github.com/shopspring/decimal"
+	"github.com/simon4545/binance-macd/config"
+	"github.com/simon4545/binance-macd/db"
+	"github.com/simon4545/binance-macd/utils"
 )
 
-func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64) {
-	orderLocker.Lock()
-	defer orderLocker.Unlock()
+func Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64) {
+	config.OrderLocker.Lock()
+	defer config.OrderLocker.Unlock()
 	pair := fmt.Sprintf("%sUSDT", symbol)
 	if len(closingPrices) < 30 {
 		return
 	}
 	//TODO 如果FDUSD交易对，fee本身就是0，这里需要做一次单独处理
-	if lotSizeMap[pair] == 0 || atrMap[symbol] == 0 || feeMap[symbol] == 0 {
+	if config.LotSizeMap[pair] == 0 || config.AtrMap[symbol] == 0 || config.FeeMap[symbol] == 0 {
 		fmt.Println("没有拿到精度")
 		return
 	}
@@ -27,16 +30,16 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 	ema6 := talib.Ema(closingPrices, 6)
 	ema26 := talib.Ema(closingPrices, 26)
 
-	investCount := GetInvestmentCount(symbol)
-	sumInvestment := GetSumInvestment(symbol)
-	balance := GetSumInvestmentQuantity(symbol)
+	investCount := db.GetInvestmentCount(symbol)
+	sumInvestment := db.GetSumInvestment(symbol)
+	balance := db.GetSumInvestmentQuantity(symbol)
 	rate := float64(investCount/2.0)/100.0 + 1
-	level := config.Level
-	if crossover(ema6, ema26) {
+	level := c.Level
+	if utils.Crossover(ema6, ema26) {
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
-		hasRecentInvestment := GetRecentInvestment(symbol, config.Period)
-		lowThanInvestmentAvgPrice := InvestmentAvgPrice(symbol, lastPrice)
-		checkTotalInvestment := CheckTotalInvestment()
+		hasRecentInvestment := db.GetRecentInvestment(symbol, c.Period)
+		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice)
+		checkTotalInvestment := db.CheckTotalInvestment(c)
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
 		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
 		if investCount < level && hasRecentInvestment == 0 && lowThanInvestmentAvgPrice {
@@ -44,17 +47,17 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 				fmt.Println(symbol, "投资达到总数")
 				return
 			}
-			balance := getBalance(client, "USDT")
-			if balance == config.Amount {
+			balance := utils.GetBalance(client, "USDT")
+			if balance == c.Amount {
 				fmt.Println(symbol, "余额不足")
 				return
 			}
 			//插入买单
-			quantity := RoundStepSize(config.Amount/lastPrice, lotSizeMap[pair])
+			quantity := utils.RoundStepSize(c.Amount/lastPrice, config.LotSizeMap[pair])
 			orderFilledChan := make(chan []string)
 			order := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "BUY")
 			if order != nil {
-				go CheckOrderById(pair, order.OrderID, orderFilledChan)
+				go utils.CheckOrderById(client, pair, order.OrderID, orderFilledChan)
 				values := <-orderFilledChan
 				if len(values) == 3 {
 					fmt.Println(symbol, values)
@@ -63,24 +66,24 @@ func Handle(c *Config, symbol string, lastPrice float64, closingPrices, highPric
 					price, _ := strconv.ParseFloat(values[2], 64)
 					quantity := amount / price
 					// quantity = quantity * (1 - feeMap[pair])
-					InsertInvestment(symbol, amount, RoundStepSize(quantity, lotSizeMap[pair]), price)
+					db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[pair]), price)
 				}
 			}
 		}
 	}
-	if investCount > 0 && balance > lotSizeMap[pair] {
-		atrRate := atrMap[symbol] / lastPrice
-		if (balance*lastPrice) >= sumInvestment*(1+atrRate) || (crossdown(ema6, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
+	if investCount > 0 && balance > config.LotSizeMap[pair] {
+		atrRate := config.AtrMap[symbol] / lastPrice
+		if (balance*lastPrice) >= sumInvestment*(1+atrRate) || (utils.Crossdown(ema6, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			// fmt.Print("出现死叉", lotSizeMap[pair])
 
 			fmt.Println(symbol, "出现死叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
-			quantity := RoundStepSize(balance, lotSizeMap[pair])
+			quantity := utils.RoundStepSize(balance, config.LotSizeMap[pair])
 			fmt.Println(symbol, "quantity", quantity)
 			// 插入卖单
 			ret := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
 			if ret != nil {
-				ClearHistory(symbol)
+				db.ClearHistory(symbol)
 			}
 		}
 	}
@@ -90,14 +93,14 @@ func createMarketOrder(client *futures.Client, pair string, quantity string, sid
 	var err error
 	if side == "BUY" {
 		sideType = futures.SideTypeBuy
-		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(RandStr(12)).
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	} else {
 		sideType = futures.SideTypeSell
 		quantityF, _ := decimal.NewFromString(quantity)
-		step := decimal.NewFromFloat(lotSizeMap[pair])
-		quantity = strconv.FormatFloat(RoundStepSize(quantityF.InexactFloat64(), step.InexactFloat64()), 'f', -1, 64)
-		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(RandStr(12)).
+		step := decimal.NewFromFloat(config.LotSizeMap[pair])
+		quantity = strconv.FormatFloat(utils.RoundStepSize(quantityF.InexactFloat64(), step.InexactFloat64()), 'f', -1, 64)
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	}
 	if err != nil {

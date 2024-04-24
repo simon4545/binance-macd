@@ -3,24 +3,24 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"log"
-	"net/http"
 	"os"
-	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/markcheno/go-talib"
 	"github.com/remeh/sizedwaitgroup"
-	"github.com/tidwall/gjson"
+
+	"github.com/simon4545/binance-macd/config"
+	"github.com/simon4545/binance-macd/db"
+	"github.com/simon4545/binance-macd/execute"
+	"github.com/simon4545/binance-macd/utils"
 )
 
+var conf *config.Config
 var client *futures.Client
-var symbols []string
-var atrMap map[string]float64
+var symbols = []string{"BTC", "ETH"}
 
 func check() {
 	currentTime := time.Now()
@@ -32,20 +32,22 @@ func check() {
 func init() {
 	check()
 
-	lotSizeMap = make(map[string]float64)
-	priceFilterMap = make(map[string]float64)
-	atrMap = make(map[string]float64)
-	feeMap = make(map[string]float64)
+	config.LotSizeMap = make(map[string]float64)
+	config.PriceFilterMap = make(map[string]float64)
+	config.AtrMap = make(map[string]float64)
+	config.FeeMap = make(map[string]float64)
 
-	config = &Config{}
-	InitConfig(config)
-	InitDB()
-	client = binance.NewFuturesClient(config.BAPI_KEY, config.BAPI_SCRET)
+	conf = &config.Config{}
+	config.InitConfig(conf)
+
+	db.InitDB()
+
+	client = binance.NewFuturesClient(conf.BAPI_KEY, conf.BAPI_SCRET)
 }
 
 func checkCross(client *futures.Client, symbol string) {
 	// defer time.Sleep(4 * time.Second)
-	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(config.Period).Limit(200).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(conf.Period).Limit(200).Do(context.Background())
 	if err != nil {
 		print(err)
 		return
@@ -62,10 +64,10 @@ func checkCross(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
-	Handle(config, symbol, lastPrice, closingPrices, highPrices, lowPrices)
+	execute.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 }
 
-func CheckCross(client *futures.Client) {
+func CheckCross(client *futures.Client, symbols []string) {
 	for {
 		fmt.Println(time.Now(), "开启新的一启")
 		swg := sizedwaitgroup.New(4)
@@ -74,7 +76,7 @@ func CheckCross(client *futures.Client) {
 			go func(s string) {
 				defer swg.Done()
 				pair := fmt.Sprintf("%sUSDT", s)
-				if lotSizeMap[pair] != 0 {
+				if config.LotSizeMap[pair] != 0 {
 					checkCross(client, s)
 					time.Sleep(time.Millisecond * 100)
 				} else {
@@ -87,59 +89,54 @@ func CheckCross(client *futures.Client) {
 		time.Sleep(time.Second * 10)
 	}
 }
+
+func checkAtr(client *futures.Client, symbol string) {
+	pair := fmt.Sprintf("%sUSDT", symbol)
+	if config.LotSizeMap[pair] == 0 {
+		fmt.Println("交易对", pair, "不可交易")
+		return
+	}
+	klines, err := client.NewKlinesService().Symbol(pair).Interval("1h").Limit(100).Do(context.Background())
+	if err != nil {
+		print(err)
+		return
+	}
+	closingPrices := []float64{}
+	highPrices := []float64{}
+	lowPrices := []float64{}
+	for _, kline := range klines {
+		close, _ := strconv.ParseFloat(kline.Close, 64)
+		high, _ := strconv.ParseFloat(kline.High, 64)
+		low, _ := strconv.ParseFloat(kline.Low, 64)
+		closingPrices = append(closingPrices, close)
+		highPrices = append(highPrices, high)
+		lowPrices = append(lowPrices, low)
+	}
+	atr := talib.Atr(highPrices, lowPrices, closingPrices, 12)
+	config.AtrMap[symbol] = atr[len(atr)-1]
+	// fmt.Println(symbol, "atr", atrMap[symbol])
+}
+func CheckAtr(client *futures.Client, symbols []string) {
+	for {
+		fmt.Println(time.Now(), "开启新的一启")
+		swg := sizedwaitgroup.New(4)
+		for _, s := range symbols {
+			swg.Add()
+			go func(s string) {
+				defer swg.Done()
+				checkAtr(client, s)
+				time.Sleep(time.Millisecond * 100)
+			}(s)
+		}
+		swg.Wait()
+		time.Sleep(time.Second * 20)
+	}
+}
 func main() {
 	InitWS()
-	GetSymbolInfo(client)
-	go CheckAtr(client)
-	go CheckCross(client)
+	utils.List(conf, &symbols)
+	utils.GetSymbolInfo(client, symbols)
+	go CheckAtr(client, symbols)
+	go CheckCross(client, symbols)
 	select {}
-}
-
-func list() {
-	if len(config.Symbols) > 0 {
-		symbols = []string{}
-		symbols = append(symbols, config.Symbols...)
-	} else {
-		url := "https://api.binance.com/api/v3/ticker/24hr"
-		// url := "https://api.binance.com/api/v3/ticker/24hr"
-		response, err := http.Get(url)
-		if err != nil {
-			log.Println("Error making GET request:", err)
-			return
-		}
-		defer response.Body.Close()
-		bodyBytes, err := io.ReadAll(response.Body)
-		if err != nil {
-			log.Println("Error reading response body:", err)
-			return
-		}
-
-		responseBody := string(bodyBytes)
-		value := gjson.Parse(responseBody).Array()
-		symbols = []string{}
-		for _, symbol := range value {
-			symbolCoin := symbol.Get("symbol").String()
-
-			if !strings.HasSuffix(symbolCoin, "USDT") {
-				continue
-			}
-			baseAsset := symbolCoin[:len(symbolCoin)-4]
-			if strings.HasSuffix(baseAsset, "DOWN") || strings.HasSuffix(baseAsset, "UP") {
-				continue
-			}
-			volume24h := symbol.Get("quoteVolume").Float()
-
-			if volume24h > 5_000_000 && !slices.Contains(config.Exclude, baseAsset) {
-				symbols = append(symbols, baseAsset)
-			}
-
-		}
-	}
-	// sort.Sort(symols)
-	// sort.Slice(symbols, func(i, j int) bool {
-	// 	return symbols[i].Percent > symbols[j].Percent
-	// })
-	// symbols = symbols[:100]
-	fmt.Println("总大小", len(symbols))
-
 }

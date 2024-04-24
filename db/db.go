@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"log"
@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/simon4545/binance-macd/config"
+	"github.com/simon4545/binance-macd/utils"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -65,7 +67,7 @@ func ConvertToSeconds(s string) int {
 	if err != nil {
 		panic(err)
 	}
-	return i * SecondsPerUnit[sValue[len(sValue)-1]]
+	return i * utils.SecondsPerUnit[sValue[len(sValue)-1]]
 }
 func GetRecentInvestment(currency string, period string) int64 {
 	intPeriod := ConvertToSeconds(period)
@@ -77,13 +79,13 @@ func GetRecentInvestment(currency string, period string) int64 {
 	}
 	return count
 }
-func CheckTotalInvestment() bool {
+func CheckTotalInvestment(conf *config.Config) bool {
 	var count int64
 	result := db.Model(&Investment{}).Count(&count)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
-	return count <= config.Level
+	return count <= conf.Level
 }
 
 type Result struct {

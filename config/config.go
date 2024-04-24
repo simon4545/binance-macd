@@ -1,14 +1,19 @@
-package main
+package config
 
 import (
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
 )
 
-var config *Config
+var OrderLocker sync.Mutex
+var AtrMap map[string]float64
+var LotSizeMap map[string]float64
+var PriceFilterMap map[string]float64
+var FeeMap map[string]float64
 
 type Config struct {
 	BAPI_KEY   string   `yaml:"BAPI_KEY"`
@@ -41,7 +46,6 @@ func InitConfig(c *Config) {
 	go func() {
 		for {
 			readConfig(c)
-			list()
 			time.Sleep(time.Second * 60)
 		}
 	}()

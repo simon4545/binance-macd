@@ -1,19 +1,21 @@
-package main
+package db
 
 import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/simon4545/binance-macd/utils"
 )
 
 var testChan chan []string
 
 func TestQu(t *testing.T) {
-	value := RoundStepSize(64.4576, 0.01)
+	value := utils.RoundStepSize(64.4576, 0.01)
 	fmt.Println(value)
 }
 func TestCheckTotalInvestment(t *testing.T) {
-	CheckTotalInvestment()
+	CheckTotalInvestment(nil)
 }
 func ch(chan []string) {
 	time.Sleep(time.Second * 3)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/shopspring/decimal"
+	"github.com/simon4545/binance-macd/db"
 )
 
 var wsUserStop chan struct{}
@@ -82,7 +83,7 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// strings.HasPrefix(message.ClientOrderID, "SIM-") &&
 		if message.Side == futures.SideTypeSell {
 			fmt.Println("订单成交-量化", symbol, quoteVolume, price)
-			ClearHistory(symbol)
+			db.ClearHistory(symbol)
 		}
 	}
 }
