@@ -92,16 +92,16 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// }
 
 		fmt.Println("订单成交-量化", symbol, quoteVolume, price, message)
-		if strings.HasPrefix(message.ClientOrderID, "SIM-") {
-			db.ClearHistory(symbol)
-		}
+		// if strings.HasPrefix(message.ClientOrderID, "SIM-") {
+		db.ClearHistory(symbol)
+		// }
 		if message.Type == "LIQUIDATION" {
 			fmt.Println("这是强平单，要立即补仓", message.ExecutionType)
 			symbol, found := strings.CutSuffix(message.Symbol, "USDT")
 			if found && slices.Contains(symbols, symbol) {
 				// 补仓
 				excutor := interfacer.Create("Long", client)
-				excutor.CreateBuySide(client, conf, symbol, message.Symbol, price)
+				excutor.CreateBuySide(client, conf, symbol, message.Symbol, quoteVolume*price, price)
 			}
 		}
 

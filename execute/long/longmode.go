@@ -57,12 +57,12 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 				return
 			}
 			balance := utils.GetBalance(client, "USDT")
-			if balance == c.Amount {
-				fmt.Println(symbol, "余额不足")
+			if balance < c.Amount {
+				fmt.Println(symbol, "余额不足", balance)
 				return
 			}
 			//插入买单
-			m.CreateBuySide(client, c, symbol, pair, lastPrice)
+			m.CreateBuySide(client, c, symbol, pair, c.Amount, lastPrice)
 		}
 	}
 	if investCount > 0 && balance > config.LotSizeMap[pair] {
@@ -86,9 +86,10 @@ func (m *LongMode) CreateSellSide(client *futures.Client, c *config.Config, symb
 	}
 }
 
-func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbol, pair string, lastPrice float64) {
+func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbol, pair string, amount, lastPrice float64) {
 	// 插入买单
-	quantity := utils.RoundStepSize(c.Amount/lastPrice, config.LotSizeMap[pair])
+	fmt.Println("CreateBuySide", symbol, amount, lastPrice)
+	quantity := utils.RoundStepSize(amount/lastPrice, config.LotSizeMap[pair])
 	orderFilledChan := make(chan []string)
 	order := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "BUY")
 	if order != nil {
@@ -97,7 +98,7 @@ func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbo
 		if len(values) == 3 {
 			fmt.Println(symbol, values)
 			//TODO 市价单查不出交易的数量只能返回平均价和总投入
-			amount, _ := strconv.ParseFloat(values[0], 64)
+			amount, _ = strconv.ParseFloat(values[0], 64)
 			price, _ := strconv.ParseFloat(values[2], 64)
 			quantity := amount / price
 			// quantity = quantity * (1 - feeMap[pair])
