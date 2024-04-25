@@ -2,6 +2,7 @@ package db
 
 import (
 	"log"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -59,8 +60,14 @@ func InvestmentAvgPrice(currency string, price, rate float64) bool {
 
 }
 
-func ClearHistory(currency string) {
-	result := db.Exec("DELETE FROM investments where currency = ?", currency)
+func ClearHistory(currency, side string) {
+	var result *gorm.DB
+	if slices.Contains([]string{"LONG", "SHORT"}, side) {
+		result = db.Exec("DELETE FROM investments where currency = ? and operate = ? ", currency, side)
+	} else {
+		result = db.Exec("DELETE FROM investments where currency = ? ", currency)
+	}
+
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}

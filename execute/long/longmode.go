@@ -17,7 +17,7 @@ import (
 
 func init() {
 	t := &LongMode{}
-	interfacer.Register("Long", t)
+	interfacer.Register("LONG", t)
 }
 
 type LongMode struct {
@@ -82,7 +82,7 @@ func (m *LongMode) CreateSellSide(client *futures.Client, c *config.Config, symb
 	// 插入卖单
 	ret := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
-		db.ClearHistory(symbol)
+		db.ClearHistory(symbol, "LONG")
 	}
 }
 
@@ -102,7 +102,7 @@ func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbo
 			price, _ := strconv.ParseFloat(values[2], 64)
 			quantity := amount / price
 			// quantity = quantity * (1 - feeMap[pair])
-			db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[pair]), price, "BUY")
+			db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[pair]), price, "LONG")
 		}
 	}
 }

@@ -17,7 +17,7 @@ import (
 
 func init() {
 	t := &ShortMode{}
-	interfacer.Register("Short", t)
+	interfacer.Register("SHORT", t)
 }
 
 type ShortMode struct {
@@ -83,7 +83,7 @@ func (m *ShortMode) CreateSellSide(client *futures.Client, c *config.Config, sym
 	// 插入卖单
 	ret := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
-		db.ClearHistory(symbol)
+		db.ClearHistory(symbol, "SHORT")
 	}
 }
 
@@ -103,7 +103,7 @@ func (m *ShortMode) CreateBuySide(client *futures.Client, c *config.Config, symb
 			price, _ := strconv.ParseFloat(values[2], 64)
 			quantity := amount / price
 			// quantity = quantity * (1 - feeMap[pair])
-			db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[pair]), price, "SELL")
+			db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[pair]), price, "SHORT")
 		}
 	}
 }
