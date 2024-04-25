@@ -80,7 +80,7 @@ func (m *LongMode) CreateSellSide(client *futures.Client, c *config.Config, symb
 	quantity := utils.RoundStepSize(balance, config.LotSizeMap[pair])
 	fmt.Println(symbol, "quantity", quantity)
 	// 插入卖单
-	ret := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
+	ret := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
 		db.ClearHistory(symbol)
 	}
@@ -91,7 +91,7 @@ func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbo
 	fmt.Println("CreateBuySide", symbol, amount, lastPrice)
 	quantity := utils.RoundStepSize(amount/lastPrice, config.LotSizeMap[pair])
 	orderFilledChan := make(chan []string)
-	order := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "BUY")
+	order := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "OPEN")
 	if order != nil {
 		go utils.CheckOrderById(client, pair, order.OrderID, orderFilledChan)
 		values := <-orderFilledChan
@@ -110,7 +110,7 @@ func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbo
 func (m *LongMode) createMarketOrder(client *futures.Client, pair string, quantity string, side string) (order *futures.CreateOrderResponse) {
 	var sideType futures.SideType
 	var err error
-	if side == "BUY" {
+	if side == "OPEN" {
 		sideType = futures.SideTypeBuy
 		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeLong).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))

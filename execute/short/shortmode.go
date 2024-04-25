@@ -111,12 +111,14 @@ func (m *ShortMode) CreateBuySide(client *futures.Client, c *config.Config, symb
 func (m *ShortMode) createMarketOrder(client *futures.Client, pair string, quantity string, side string) (order *futures.CreateOrderResponse) {
 	var sideType futures.SideType
 	var err error
-	if side == "BUY" {
-		sideType = futures.SideTypeBuy
+	// 开空
+	if side == "OPEN" {
+		sideType = futures.SideTypeSell
 		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeShort).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	} else {
-		sideType = futures.SideTypeSell
+		// 平空
+		sideType = futures.SideTypeBuy
 		quantityF, _ := decimal.NewFromString(quantity)
 		step := decimal.NewFromFloat(config.LotSizeMap[pair])
 		quantity = strconv.FormatFloat(utils.RoundStepSize(quantityF.InexactFloat64(), step.InexactFloat64()), 'f', -1, 64)
