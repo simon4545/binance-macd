@@ -81,7 +81,7 @@ func (m *ShortMode) CreateSellSide(client *futures.Client, c *config.Config, sym
 	quantity := utils.RoundStepSize(balance, config.LotSizeMap[pair])
 	fmt.Println(symbol, "quantity", quantity)
 	// 插入卖单
-	ret := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
+	ret := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
 		db.ClearHistory(symbol)
 	}
@@ -92,7 +92,7 @@ func (m *ShortMode) CreateBuySide(client *futures.Client, c *config.Config, symb
 	fmt.Println("CreateBuySide", symbol, amount, lastPrice)
 	quantity := utils.RoundStepSize(amount/lastPrice, config.LotSizeMap[pair])
 	orderFilledChan := make(chan []string)
-	order := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "BUY")
+	order := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "OPEN")
 	if order != nil {
 		go utils.CheckOrderById(client, pair, order.OrderID, orderFilledChan)
 		values := <-orderFilledChan

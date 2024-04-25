@@ -26,7 +26,7 @@ type Investment struct {
 
 func InitDB() {
 	var err error
-	db, err = gorm.Open(sqlite.Open("investment.db?_loc=Asia/Shanghai"), &gorm.Config{})
+	db, err = gorm.Open(sqlite.Open("future.db?_loc=Asia/Shanghai"), &gorm.Config{})
 	if err != nil {
 		log.Fatal(err)
 	}
