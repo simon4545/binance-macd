@@ -15,6 +15,7 @@ import (
 	"github.com/simon4545/binance-macd/config"
 	"github.com/simon4545/binance-macd/db"
 	_ "github.com/simon4545/binance-macd/execute/long"
+	_ "github.com/simon4545/binance-macd/execute/short"
 	"github.com/simon4545/binance-macd/interfacer"
 	"github.com/simon4545/binance-macd/utils"
 )
@@ -65,7 +66,7 @@ func checkCross(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
-	excutor := interfacer.Create("Long", client)
+	excutor := interfacer.Create(conf.Side, client)
 	excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 }
 

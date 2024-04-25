@@ -23,10 +23,11 @@ type Config struct {
 	Exclude    []string `yaml:"EXCLUDE"`
 	Period     string   `yaml:"PERIOD"`
 	Level      int64    `yaml:"LEVEL"`
+	Side       string   `yaml:"SIDE"`
 }
 
 func readConfig(c *Config) {
-	yamlFile, err := os.ReadFile("config.yaml")
+	yamlFile, err := os.ReadFile("future.yaml")
 	if err != nil {
 		log.Printf("yamlFile.Get err   #%v ", err)
 	}
@@ -39,6 +40,9 @@ func readConfig(c *Config) {
 	}
 	if c.Period == "" {
 		c.Period = "1m"
+	}
+	if c.Side == "" {
+		c.Side = "Long"
 	}
 }
 func InitConfig(c *Config) {
