@@ -1,8 +1,22 @@
 package main
 
+// Type
+// MARKET 市价单
+// LIMIT 限价单
+// STOP 止损单
+// TAKE_PROFIT 止盈单
+// LIQUIDATION 强平单
+// ExecutionType
+// NEW
+// CANCELED 已撤
+// CALCULATED 订单ADL或爆仓
+// EXPIRED 订单失效
+// TRADE 交易
+// AMENDMENT 订单修改
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +24,7 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/shopspring/decimal"
 	"github.com/simon4545/binance-macd/db"
+	"github.com/simon4545/binance-macd/interfacer"
 )
 
 var wsUserStop chan struct{}
@@ -65,7 +80,7 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 	// if message.Status == "CANCELED" {
 
 	// }
-	if message.Status == "FILLED" {
+	if message.Status == "FILLED" && message.Side == futures.SideTypeSell {
 		price, _ := strconv.ParseFloat(message.LastFilledPrice, 64)
 		symbol := message.Symbol[:len(message.Symbol)-4]
 		feeCost, _ := decimal.NewFromString(message.Commission)
@@ -75,15 +90,20 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// if strings.HasPrefix(message.ClientOrderID, "SIM-") && message.Side == futures.SideTypeBuy {
 		// 	orderFilledChan <- []string{order.CumQuote, message.AccumulatedFilledQty, message.LastFilledPrice}
 		// }
-		// MARKET 市价单
-		// LIMIT 限价单
-		// STOP 止损单
-		// TAKE_PROFIT 止盈单
-		// LIQUIDATION 强平单
-		// strings.HasPrefix(message.ClientOrderID, "SIM-") &&
-		if message.Side == futures.SideTypeSell {
-			fmt.Println("订单成交-量化", symbol, quoteVolume, price)
+
+		fmt.Println("订单成交-量化", symbol, quoteVolume, price, message)
+		if strings.HasPrefix(message.ClientOrderID, "SIM-") {
 			db.ClearHistory(symbol)
 		}
+		if message.Type == "LIQUIDATION" {
+			fmt.Println("这是强平单，要立即补仓", message.ExecutionType)
+			symbol, found := strings.CutSuffix(message.Symbol, "USDT")
+			if found && slices.Contains(symbols, symbol) {
+				// 补仓
+				excutor := interfacer.Create("Long", client)
+				excutor.CreateBuySide(client, conf, symbol, message.Symbol, price)
+			}
+		}
+
 	}
 }

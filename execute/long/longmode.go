@@ -1,4 +1,4 @@
-package execute
+package long
 
 import (
 	"context"
@@ -11,10 +11,19 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/simon4545/binance-macd/config"
 	"github.com/simon4545/binance-macd/db"
+	"github.com/simon4545/binance-macd/interfacer"
 	"github.com/simon4545/binance-macd/utils"
 )
 
-func Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64) {
+func init() {
+	t := &LongMode{}
+	interfacer.Register("Long", t)
+}
+
+type LongMode struct {
+}
+
+func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64) {
 	config.OrderLocker.Lock()
 	defer config.OrderLocker.Unlock()
 	pair := fmt.Sprintf("%sUSDT", symbol)
@@ -53,22 +62,7 @@ func Handle(client *futures.Client, c *config.Config, symbol string, lastPrice f
 				return
 			}
 			//插入买单
-			quantity := utils.RoundStepSize(c.Amount/lastPrice, config.LotSizeMap[pair])
-			orderFilledChan := make(chan []string)
-			order := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "BUY")
-			if order != nil {
-				go utils.CheckOrderById(client, pair, order.OrderID, orderFilledChan)
-				values := <-orderFilledChan
-				if len(values) == 3 {
-					fmt.Println(symbol, values)
-					//TODO 市价单查不出交易的数量只能返回平均价和总投入
-					amount, _ := strconv.ParseFloat(values[0], 64)
-					price, _ := strconv.ParseFloat(values[2], 64)
-					quantity := amount / price
-					// quantity = quantity * (1 - feeMap[pair])
-					db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[pair]), price)
-				}
-			}
+			m.CreateBuySide(client, c, symbol, pair, lastPrice)
 		}
 	}
 	if investCount > 0 && balance > config.LotSizeMap[pair] {
@@ -78,17 +72,41 @@ func Handle(client *futures.Client, c *config.Config, symbol string, lastPrice f
 			// fmt.Print("出现死叉", lotSizeMap[pair])
 
 			fmt.Println(symbol, "出现死叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
-			quantity := utils.RoundStepSize(balance, config.LotSizeMap[pair])
-			fmt.Println(symbol, "quantity", quantity)
-			// 插入卖单
-			ret := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
-			if ret != nil {
-				db.ClearHistory(symbol)
-			}
+			m.CreateSellSide(client, c, symbol, pair, balance)
 		}
 	}
 }
-func createMarketOrder(client *futures.Client, pair string, quantity string, side string) (order *futures.CreateOrderResponse) {
+func (m *LongMode) CreateSellSide(client *futures.Client, c *config.Config, symbol, pair string, balance float64) {
+	quantity := utils.RoundStepSize(balance, config.LotSizeMap[pair])
+	fmt.Println(symbol, "quantity", quantity)
+	// 插入卖单
+	ret := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")
+	if ret != nil {
+		db.ClearHistory(symbol)
+	}
+}
+
+func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbol, pair string, lastPrice float64) {
+	// 插入买单
+	quantity := utils.RoundStepSize(c.Amount/lastPrice, config.LotSizeMap[pair])
+	orderFilledChan := make(chan []string)
+	order := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "BUY")
+	if order != nil {
+		go utils.CheckOrderById(client, pair, order.OrderID, orderFilledChan)
+		values := <-orderFilledChan
+		if len(values) == 3 {
+			fmt.Println(symbol, values)
+			//TODO 市价单查不出交易的数量只能返回平均价和总投入
+			amount, _ := strconv.ParseFloat(values[0], 64)
+			price, _ := strconv.ParseFloat(values[2], 64)
+			quantity := amount / price
+			// quantity = quantity * (1 - feeMap[pair])
+			db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[pair]), price)
+		}
+	}
+}
+
+func (m *LongMode) createMarketOrder(client *futures.Client, pair string, quantity string, side string) (order *futures.CreateOrderResponse) {
 	var sideType futures.SideType
 	var err error
 	if side == "BUY" {

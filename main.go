@@ -14,7 +14,8 @@ import (
 
 	"github.com/simon4545/binance-macd/config"
 	"github.com/simon4545/binance-macd/db"
-	"github.com/simon4545/binance-macd/execute"
+	_ "github.com/simon4545/binance-macd/execute/long"
+	"github.com/simon4545/binance-macd/interfacer"
 	"github.com/simon4545/binance-macd/utils"
 )
 
@@ -64,12 +65,13 @@ func checkCross(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
-	execute.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
+	excutor := interfacer.Create("Long", client)
+	excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 }
 
 func CheckCross(client *futures.Client, symbols []string) {
 	for {
-		fmt.Println(time.Now(), "开启新的一启")
+		// fmt.Println(time.Now(), "开启新的一启")
 		swg := sizedwaitgroup.New(4)
 		for _, s := range symbols {
 			swg.Add()
@@ -118,7 +120,7 @@ func checkAtr(client *futures.Client, symbol string) {
 }
 func CheckAtr(client *futures.Client, symbols []string) {
 	for {
-		fmt.Println(time.Now(), "开启新的一启")
+		// fmt.Println(time.Now(), "开启新的一启")
 		swg := sizedwaitgroup.New(4)
 		for _, s := range symbols {
 			swg.Add()

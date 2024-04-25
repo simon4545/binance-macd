@@ -114,11 +114,8 @@ func CheckOrderById(client *futures.Client, pair string, orderId int64, orderFil
 
 func List(conf *config.Config, symbols *[]string) {
 	if len(conf.Symbols) > 0 {
-		fmt.Printf("%p", symbols)
 		*symbols = (*symbols)[:0]
-		fmt.Printf("%p", symbols)
 		*symbols = append(*symbols, conf.Symbols...)
-		fmt.Printf("%p", symbols)
 	} else {
 		url := "https://api.binance.com/api/v3/ticker/24hr"
 		// url := "https://api.binance.com/api/v3/ticker/24hr"
