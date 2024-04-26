@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -66,7 +65,7 @@ func GetSymbolInfo(client *futures.Client, symbols []string) {
 		// }
 	}
 	for _, s := range symbols {
-		rate, err := client.NewCommissionRateService().Symbol(s + "USDT").Do(context.Background())
+		rate, err := client.NewCommissionRateService().Symbol(s).Do(context.Background())
 		if err != nil {
 			print("Error fetching trade fee:", err)
 			os.Exit(1)
@@ -115,7 +114,9 @@ func CheckOrderById(client *futures.Client, pair string, orderId int64, orderFil
 func List(conf *config.Config, symbols *[]string) {
 	if len(conf.Symbols) > 0 {
 		*symbols = (*symbols)[:0]
-		*symbols = append(*symbols, conf.Symbols...)
+		for k := range conf.Symbols {
+			*symbols = append(*symbols, k)
+		}
 	} else {
 		url := "https://api.binance.com/api/v3/ticker/24hr"
 		// url := "https://api.binance.com/api/v3/ticker/24hr"
@@ -145,10 +146,9 @@ func List(conf *config.Config, symbols *[]string) {
 			}
 			volume24h := symbol.Get("quoteVolume").Float()
 
-			if volume24h > 5_000_000 && !slices.Contains(conf.Exclude, baseAsset) {
+			if volume24h > 5_000_000 {
 				*symbols = append(*symbols, baseAsset)
 			}
-
 		}
 	}
 	// sort.Sort(symols)

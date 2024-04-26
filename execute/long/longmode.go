@@ -26,12 +26,11 @@ type LongMode struct {
 func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64) {
 	config.OrderLocker.Lock()
 	defer config.OrderLocker.Unlock()
-	pair := fmt.Sprintf("%sUSDT", symbol)
 	if len(closingPrices) < 30 {
 		return
 	}
 	//TODO 如果FDUSD交易对，fee本身就是0，这里需要做一次单独处理
-	if config.LotSizeMap[pair] == 0 || config.AtrMap[symbol] == 0 || config.FeeMap[symbol] == 0 {
+	if config.LotSizeMap[symbol] == 0 || config.AtrMap[symbol] == 0 || config.FeeMap[symbol] == 0 {
 		fmt.Println("没有拿到精度")
 		return
 	}
@@ -57,43 +56,43 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 				return
 			}
 			balance := utils.GetBalance(client, "USDT")
-			if balance < c.Amount {
+			if balance < c.Symbols[symbol].Amount {
 				fmt.Println(symbol, "余额不足", balance)
 				return
 			}
 			//插入买单
-			m.CreateBuySide(client, c, symbol, pair, c.Amount, lastPrice)
+			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice)
 		}
 	}
-	if investCount > 0 && balance > config.LotSizeMap[pair] {
+	if investCount > 0 && balance > config.LotSizeMap[symbol] {
 		atrRate := config.AtrMap[symbol] / lastPrice
 		if (balance*lastPrice) >= sumInvestment*(1+atrRate) || (utils.Crossdown(ema6, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-			// fmt.Print("出现死叉", lotSizeMap[pair])
+			// fmt.Print("出现死叉", lotSizeMap[symbol])
 
 			fmt.Println(symbol, "出现死叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
-			m.CreateSellSide(client, c, symbol, pair, balance)
+			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
 }
-func (m *LongMode) CreateSellSide(client *futures.Client, c *config.Config, symbol, pair string, balance float64) {
-	quantity := utils.RoundStepSize(balance, config.LotSizeMap[pair])
+func (m *LongMode) CreateSellSide(client *futures.Client, c *config.Config, symbol string, balance float64) {
+	quantity := utils.RoundStepSize(balance, config.LotSizeMap[symbol])
 	fmt.Println(symbol, "quantity", quantity)
 	// 插入卖单
-	ret := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
+	ret := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
 		db.ClearHistory(symbol, "LONG")
 	}
 }
 
-func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbol, pair string, amount, lastPrice float64) {
+func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbol string, amount, lastPrice float64) {
 	// 插入买单
 	fmt.Println("CreateBuySide", symbol, amount, lastPrice)
-	quantity := utils.RoundStepSize(amount/lastPrice, config.LotSizeMap[pair])
+	quantity := utils.RoundStepSize(amount/lastPrice, config.LotSizeMap[symbol])
 	orderFilledChan := make(chan []string)
-	order := m.createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "OPEN")
+	order := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "OPEN")
 	if order != nil {
-		go utils.CheckOrderById(client, pair, order.OrderID, orderFilledChan)
+		go utils.CheckOrderById(client, symbol, order.OrderID, orderFilledChan)
 		values := <-orderFilledChan
 		if len(values) == 3 {
 			fmt.Println(symbol, values)
@@ -102,7 +101,7 @@ func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbo
 			price, _ := strconv.ParseFloat(values[2], 64)
 			quantity := amount / price
 			// quantity = quantity * (1 - feeMap[pair])
-			db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[pair]), price, "LONG")
+			db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[symbol]), price, "LONG")
 		}
 	}
 }

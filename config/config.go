@@ -15,15 +15,17 @@ var LotSizeMap map[string]float64
 var PriceFilterMap map[string]float64
 var FeeMap map[string]float64
 
+type SymbolConfig struct {
+	Amount float64 `yaml:"AMOUNT"`
+	Side   string  `yaml:"SIDE"`
+}
 type Config struct {
-	BAPI_KEY   string   `yaml:"BAPI_KEY"`
-	BAPI_SCRET string   `yaml:"BAPI_SCRET"`
-	Symbols    []string `yaml:"SYMBOLS"`
-	Amount     float64  `yaml:"AMOUNT"`
-	Exclude    []string `yaml:"EXCLUDE"`
-	Period     string   `yaml:"PERIOD"`
-	Level      int64    `yaml:"LEVEL"`
-	Side       string   `yaml:"SIDE"`
+	BAPI_KEY   string                   `yaml:"BAPI_KEY"`
+	BAPI_SCRET string                   `yaml:"BAPI_SCRET"`
+	Symbols    map[string]*SymbolConfig `yaml:"SYMBOLS"`
+	Period     string                   `yaml:"PERIOD"`
+	Level      int64                    `yaml:"LEVEL"`
+	ForceInput bool                     `yaml:"FORCEINPUT"`
 }
 
 func readConfig(c *Config) {
@@ -41,8 +43,10 @@ func readConfig(c *Config) {
 	if c.Period == "" {
 		c.Period = "1m"
 	}
-	if c.Side == "" {
-		c.Side = "Long"
+	for _, v := range c.Symbols {
+		if v.Side == "" {
+			v.Side = "LONG"
+		}
 	}
 }
 func InitConfig(c *Config) {

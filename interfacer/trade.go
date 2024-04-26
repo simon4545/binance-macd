@@ -7,8 +7,8 @@ import (
 
 type Executor interface {
 	Handle(*futures.Client, *config.Config, string, float64, []float64, []float64, []float64)
-	CreateSellSide(*futures.Client, *config.Config, string, string, float64)
-	CreateBuySide(*futures.Client, *config.Config, string, string, float64, float64)
+	CreateSellSide(*futures.Client, *config.Config, string, float64)
+	CreateBuySide(*futures.Client, *config.Config, string, float64, float64)
 }
 
 var factoryByName = make(map[string]Executor)

@@ -22,7 +22,7 @@ import (
 
 var conf *config.Config
 var client *futures.Client
-var symbols = []string{"BTC", "ETH"}
+var symbols = []string{"BTCUSDT", "ETHUSDT"}
 
 func check() {
 	currentTime := time.Now()
@@ -49,7 +49,7 @@ func init() {
 
 func checkCross(client *futures.Client, symbol string) {
 	// defer time.Sleep(4 * time.Second)
-	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(conf.Period).Limit(200).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval(conf.Period).Limit(100).Do(context.Background())
 	if err != nil {
 		print(err)
 		return
@@ -66,7 +66,7 @@ func checkCross(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
-	excutor := interfacer.Create(conf.Side, client)
+	excutor := interfacer.Create(conf.Symbols[symbol].Side, client)
 	excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 }
 
@@ -76,11 +76,10 @@ func CheckCross(client *futures.Client, symbols []string) {
 		swg := sizedwaitgroup.New(4)
 		for _, s := range symbols {
 			swg.Add()
-			go func(s string) {
+			go func(pair string) {
 				defer swg.Done()
-				pair := fmt.Sprintf("%sUSDT", s)
 				if config.LotSizeMap[pair] != 0 {
-					checkCross(client, s)
+					checkCross(client, pair)
 					time.Sleep(time.Millisecond * 100)
 				} else {
 					fmt.Println("交易对", pair, "不可交易")
@@ -94,7 +93,7 @@ func CheckCross(client *futures.Client, symbols []string) {
 }
 
 func checkAtr(client *futures.Client, symbol string) {
-	pair := fmt.Sprintf("%sUSDT", symbol)
+	pair := symbol
 	if config.LotSizeMap[pair] == 0 {
 		fmt.Println("交易对", pair, "不可交易")
 		return
