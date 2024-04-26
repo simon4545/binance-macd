@@ -43,7 +43,7 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 	balance := db.GetSumInvestmentQuantity(symbol)
 	rate := 1 - float64(investCount/2.0)/100.0
 	atrRate := config.AtrMap[symbol] / lastPrice
-	fmt.Println(symbol, config.AtrMap[symbol], atrRate)
+	// fmt.Println(symbol, config.AtrMap[symbol], atrRate)
 	level := c.Level
 	if utils.Crossdown(ema6, ema26) {
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -31,6 +32,28 @@ func check() {
 		os.Exit(0) // 使用非零状态码退出，表示程序是有意退出的
 	}
 }
+
+// transport binance transport client
+type Transport struct {
+	UnderlyingTransport http.RoundTripper
+}
+
+var weightMaxPerMinute int = 6000
+var usedWeight int
+
+// RoundTrip implement http roundtrip
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.UnderlyingTransport.RoundTrip(req)
+	if resp != nil && resp.Header != nil {
+		usedWeight, _ = strconv.Atoi(resp.Header.Get("X-Mbx-Used-Weight-1m"))
+		if usedWeight > weightMaxPerMinute/2 {
+			fmt.Println("请求权重", usedWeight)
+			time.Sleep(time.Second * 30)
+		}
+	}
+
+	return resp, err
+}
 func init() {
 	check()
 
@@ -45,6 +68,10 @@ func init() {
 	db.InitDB()
 
 	client = binance.NewFuturesClient(conf.BAPI_KEY, conf.BAPI_SCRET)
+	client.NewSetServerTimeService().Do(context.Background())
+	c := http.Client{Transport: &Transport{UnderlyingTransport: http.DefaultTransport}}
+	client.HTTPClient = &c
+	binance.WebsocketKeepalive = true
 }
 
 func checkCross(client *futures.Client, symbol string) {
@@ -66,8 +93,17 @@ func checkCross(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
-	excutor := interfacer.Create(conf.Symbols[symbol].Side, client)
-	excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
+	side := conf.Symbols[symbol].Side
+	if side == "BOTH" {
+		excutor := interfacer.Create("LONG", client)
+		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
+		excutors := interfacer.Create("SHORT", client)
+		excutors.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
+	} else {
+		excutor := interfacer.Create(side, client)
+		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
+	}
+
 }
 
 func CheckCross(client *futures.Client) {
@@ -89,7 +125,7 @@ func CheckCross(client *futures.Client) {
 			}(s)
 		}
 		swg.Wait()
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Second * 6)
 	}
 }
 
