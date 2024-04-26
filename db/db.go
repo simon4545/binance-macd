@@ -46,16 +46,16 @@ func GetInvestmentCount(currency string) int64 {
 	return count
 }
 
-func InvestmentAvgPrice(currency string, price, rate float64) bool {
+func InvestmentAvgPrice(currency string, price, rate float64, longmode bool) bool {
 	dbResult := &Result{}
 	result := db.Model(&Investment{}).Select("unit_price as Total").Where("currency = ?", currency).Order("id DESC").Limit(1).Scan(dbResult)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
-	if rate >= 1 {
-		return dbResult.Total == 0 || dbResult.Total/price > rate
+	if longmode {
+		return dbResult.Total == 0 || price <= (dbResult.Total-rate)
 	} else {
-		return dbResult.Total == 0 || dbResult.Total/price < rate
+		return dbResult.Total == 0 || price >= (dbResult.Total+rate)
 	}
 
 }

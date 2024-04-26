@@ -45,7 +45,7 @@ func GetBalance(client *futures.Client, token string) float64 {
 	return balance
 }
 
-func GetSymbolInfo(client *futures.Client, symbols []string) {
+func GetSymbolInfo(client *futures.Client) {
 	info, err := client.NewExchangeInfoService().Do(context.Background())
 	if err != nil {
 		print("Error fetching exchange info:", err)
@@ -64,7 +64,12 @@ func GetSymbolInfo(client *futures.Client, symbols []string) {
 		// return
 		// }
 	}
+}
+func GetFeeInfo(client *futures.Client, symbols []string) {
 	for _, s := range symbols {
+		if config.FeeMap[s] != 0 {
+			continue
+		}
 		rate, err := client.NewCommissionRateService().Symbol(s).Do(context.Background())
 		if err != nil {
 			print("Error fetching trade fee:", err)
@@ -74,7 +79,6 @@ func GetSymbolInfo(client *futures.Client, symbols []string) {
 		config.FeeMap[s] = fee
 	}
 }
-
 func Crossover(a, b []float64) bool {
 	return a[len(a)-2] < b[len(b)-2] && a[len(a)-1] >= b[len(b)-1]
 }

@@ -70,8 +70,9 @@ func checkCross(client *futures.Client, symbol string) {
 	excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 }
 
-func CheckCross(client *futures.Client, symbols []string) {
+func CheckCross(client *futures.Client) {
 	for {
+		utils.List(conf, &symbols)
 		// fmt.Println(time.Now(), "开启新的一启")
 		swg := sizedwaitgroup.New(4)
 		for _, s := range symbols {
@@ -118,8 +119,9 @@ func checkAtr(client *futures.Client, symbol string) {
 	config.AtrMap[symbol] = atr[len(atr)-1]
 	// fmt.Println(symbol, "atr", atrMap[symbol])
 }
-func CheckAtr(client *futures.Client, symbols []string) {
+func CheckAtr(client *futures.Client) {
 	for {
+		utils.GetFeeInfo(client, symbols)
 		// fmt.Println(time.Now(), "开启新的一启")
 		swg := sizedwaitgroup.New(4)
 		for _, s := range symbols {
@@ -137,8 +139,8 @@ func CheckAtr(client *futures.Client, symbols []string) {
 func main() {
 	InitWS()
 	utils.List(conf, &symbols)
-	utils.GetSymbolInfo(client, symbols)
-	go CheckAtr(client, symbols)
-	go CheckCross(client, symbols)
+	utils.GetSymbolInfo(client)
+	go CheckAtr(client)
+	go CheckCross(client)
 	select {}
 }

@@ -79,7 +79,7 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 	// if message.Status == "CANCELED" {
 
 	// }
-	if message.Status == "FILLED" && message.Side == futures.SideTypeSell {
+	if message.Status == "FILLED" {
 		price, _ := strconv.ParseFloat(message.LastFilledPrice, 64)
 		feeCost, _ := decimal.NewFromString(message.Commission)
 		quoteVolume, _ := strconv.ParseFloat(message.AccumulatedFilledQty, 64)
@@ -89,11 +89,15 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// 	orderFilledChan <- []string{order.CumQuote, message.AccumulatedFilledQty, message.LastFilledPrice}
 		// }
 
-		fmt.Println("订单成交-量化", message.Symbol, quoteVolume, price, message)
 		// if strings.HasPrefix(message.ClientOrderID, "SIM-") {
-		db.ClearHistory(message.Symbol, string(message.PositionSide))
+		if message.PositionSide == futures.PositionSideTypeShort && message.Side == futures.SideTypeBuy {
+			db.ClearHistory(message.Symbol, string(message.PositionSide))
+		}
+		if message.PositionSide == futures.PositionSideTypeLong && message.Side == futures.SideTypeSell {
+			db.ClearHistory(message.Symbol, string(message.PositionSide))
+		}
 		// }
-		if message.Type == "LIQUIDATION" {
+		if message.Type == "LIQUIDATION" && conf.ForceInput {
 			fmt.Println("这是强平单空，要立即补仓", message.ExecutionType)
 			if slices.Contains(symbols, message.Symbol) {
 				// 补仓

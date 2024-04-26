@@ -42,11 +42,13 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	sumInvestment := db.GetSumInvestment(symbol)
 	balance := db.GetSumInvestmentQuantity(symbol)
 	rate := float64(investCount/2.0)/100.0 + 1
+	atrRate := config.AtrMap[symbol] / lastPrice
+	fmt.Println(symbol, config.AtrMap[symbol], atrRate)
 	level := c.Level
 	if utils.Crossover(ema6, ema26) {
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
 		hasRecentInvestment := db.GetRecentInvestment(symbol, c.Period)
-		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, 1.02)
+		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atrRate, true)
 		checkTotalInvestment := db.CheckTotalInvestment(c)
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
 		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
@@ -65,8 +67,8 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 		}
 	}
 	if investCount > 0 && balance > config.LotSizeMap[symbol] {
-		atrRate := config.AtrMap[symbol] / lastPrice
-		if (balance*lastPrice) >= sumInvestment*(1+atrRate) || (utils.Crossdown(ema6, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
+		_atrRate := atrRate * 2.5
+		if (balance*lastPrice) >= sumInvestment*(1+_atrRate) || (utils.Crossdown(ema6, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level)) {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			// fmt.Print("出现死叉", lotSizeMap[symbol])
 
