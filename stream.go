@@ -90,6 +90,7 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// }
 
 		// if strings.HasPrefix(message.ClientOrderID, "SIM-") {
+		investment := db.GetSumInvestment(message.Symbol)
 		if message.PositionSide == futures.PositionSideTypeShort && message.Side == futures.SideTypeBuy {
 			db.ClearHistory(message.Symbol, string(message.PositionSide))
 		}
@@ -98,11 +99,11 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		}
 		// }
 		if message.Type == "LIQUIDATION" && conf.ForceInput {
-			fmt.Println("这是强平单空，要立即补仓", message.ExecutionType)
+			fmt.Println("这是强平单空，要立即补仓", investment, message.ExecutionType)
 			if slices.Contains(symbols, message.Symbol) {
 				// 补仓
 				excutor := interfacer.Create(string(message.PositionSide), client)
-				excutor.CreateBuySide(client, conf, message.Symbol, quoteVolume*price, price)
+				excutor.CreateBuySide(client, conf, message.Symbol, investment, price)
 			}
 		}
 
