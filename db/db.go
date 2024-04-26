@@ -37,9 +37,13 @@ func InitDB() {
 	}
 }
 
-func GetInvestmentCount(currency string) int64 {
+func GetInvestmentCount(currency string, longmode bool) int64 {
 	var count int64
-	result := db.Model(&Investment{}).Where("currency = ?", currency).Count(&count)
+	var mode = "SHORT"
+	if longmode {
+		mode = "LONG"
+	}
+	result := db.Model(&Investment{}).Where("currency = ? and operate= ?", currency, mode).Count(&count)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
@@ -48,7 +52,11 @@ func GetInvestmentCount(currency string) int64 {
 
 func InvestmentAvgPrice(currency string, price, rate float64, longmode bool) bool {
 	dbResult := &Result{}
-	result := db.Model(&Investment{}).Select("unit_price as Total").Where("currency = ?", currency).Order("id DESC").Limit(1).Scan(dbResult)
+	var mode = "SHORT"
+	if longmode {
+		mode = "LONG"
+	}
+	result := db.Model(&Investment{}).Select("unit_price as Total").Where("currency = ? and operate= ? ", currency, mode).Order("id DESC").Limit(1).Scan(dbResult)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
@@ -81,19 +89,27 @@ func ConvertToSeconds(s string) int {
 	}
 	return i * utils.SecondsPerUnit[sValue[len(sValue)-1]]
 }
-func GetRecentInvestment(currency string, period string) int64 {
+func GetRecentInvestment(currency string, period string, longmode bool) int64 {
 	intPeriod := ConvertToSeconds(period)
 	current := time.Now().Add(-time.Duration(intPeriod*5) * time.Second)
 	var count int64
-	result := db.Model(&Investment{}).Where("created_at >= ? and currency = ?", current, currency).Count(&count)
+	var mode = "SHORT"
+	if longmode {
+		mode = "LONG"
+	}
+	result := db.Model(&Investment{}).Where("created_at >= ? and currency = ? and operate= ? ", current, currency, mode).Count(&count)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
 	return count
 }
-func CheckTotalInvestment(conf *config.Config) bool {
+func CheckTotalInvestment(conf *config.Config, longmode bool) bool {
 	var count int64
-	result := db.Model(&Investment{}).Count(&count)
+	var mode = "SHORT"
+	if longmode {
+		mode = "LONG"
+	}
+	result := db.Model(&Investment{}).Where("operate= ? ", mode).Count(&count)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
@@ -104,9 +120,13 @@ type Result struct {
 	Total float64
 }
 
-func GetSumInvestment(currency string) float64 {
+func GetSumInvestment(currency string, longmode bool) float64 {
 	dbResult := &Result{}
-	result := db.Model(&Investment{}).Select("SUM(amount) as Total").Where("currency = ?", currency).Scan(dbResult)
+	var mode = "SHORT"
+	if longmode {
+		mode = "LONG"
+	}
+	result := db.Model(&Investment{}).Select("SUM(amount) as Total").Where("currency = ? and operate= ? ", currency, mode).Scan(dbResult)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
@@ -115,9 +135,13 @@ func GetSumInvestment(currency string) float64 {
 	// }
 	return dbResult.Total
 }
-func GetSumInvestmentQuantity(currency string) float64 {
+func GetSumInvestmentQuantity(currency string, longmode bool) float64 {
+	var mode = "SHORT"
+	if longmode {
+		mode = "LONG"
+	}
 	dbResult := &Result{}
-	result := db.Model(&Investment{}).Select("SUM(quantity) as Total").Where("currency = ?", currency).Scan(dbResult)
+	result := db.Model(&Investment{}).Select("SUM(quantity) as Total").Where("currency = ? and operate= ?", currency, mode).Scan(dbResult)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}

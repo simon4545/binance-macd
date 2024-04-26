@@ -18,6 +18,7 @@ import (
 	_ "github.com/simon4545/binance-macd/execute/long"
 	_ "github.com/simon4545/binance-macd/execute/short"
 	"github.com/simon4545/binance-macd/interfacer"
+	"github.com/simon4545/binance-macd/tools"
 	"github.com/simon4545/binance-macd/utils"
 )
 
@@ -59,7 +60,7 @@ func init() {
 
 	config.LotSizeMap = make(map[string]float64)
 	config.PriceFilterMap = make(map[string]float64)
-	config.AtrMap = make(map[string]float64)
+	config.AtrMap = tools.NewSafeMap[string, float64]()
 	config.FeeMap = make(map[string]float64)
 
 	conf = &config.Config{}
@@ -152,7 +153,7 @@ func checkAtr(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 	}
 	atr := talib.Atr(highPrices, lowPrices, closingPrices, 12)
-	config.AtrMap[symbol] = atr[len(atr)-1]
+	config.AtrMap.Set(symbol, atr[len(atr)-1])
 	// fmt.Println(symbol, "atr", atrMap[symbol])
 }
 func CheckAtr(client *futures.Client) {

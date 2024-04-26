@@ -6,11 +6,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/simon4545/binance-macd/tools"
 	"gopkg.in/yaml.v2"
 )
 
 var OrderLocker sync.Mutex
-var AtrMap map[string]float64
+var AtrMap *tools.SafeMap[string, float64]
 var LotSizeMap map[string]float64
 var PriceFilterMap map[string]float64
 var FeeMap map[string]float64

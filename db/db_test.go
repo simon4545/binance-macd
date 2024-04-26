@@ -15,7 +15,7 @@ func TestQu(t *testing.T) {
 	fmt.Println(value)
 }
 func TestCheckTotalInvestment(t *testing.T) {
-	CheckTotalInvestment(nil)
+	CheckTotalInvestment(nil, true)
 }
 func ch(chan []string) {
 	time.Sleep(time.Second * 3)

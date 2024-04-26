@@ -29,8 +29,12 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	if len(closingPrices) < 30 {
 		return
 	}
+	atr, exists := config.AtrMap.Get(symbol)
+	if !exists {
+		return
+	}
 	//TODO 如果FDUSD交易对，fee本身就是0，这里需要做一次单独处理
-	if config.LotSizeMap[symbol] == 0 || config.AtrMap[symbol] == 0 || config.FeeMap[symbol] == 0 {
+	if config.LotSizeMap[symbol] == 0 || atr == 0 || config.FeeMap[symbol] == 0 {
 		fmt.Println("没有拿到精度")
 		return
 	}
@@ -38,18 +42,18 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	ema6 := talib.Ema(closingPrices, 6)
 	ema26 := talib.Ema(closingPrices, 26)
 
-	investCount := db.GetInvestmentCount(symbol)
-	sumInvestment := db.GetSumInvestment(symbol)
-	balance := db.GetSumInvestmentQuantity(symbol)
+	investCount := db.GetInvestmentCount(symbol, true)
+	sumInvestment := db.GetSumInvestment(symbol, true)
+	balance := db.GetSumInvestmentQuantity(symbol, true)
 	rate := float64(investCount/2.0)/100.0 + 1
-	atrRate := config.AtrMap[symbol] / lastPrice
+	atrRate := atr / lastPrice
 	// fmt.Println(symbol, config.AtrMap[symbol], atrRate)
 	level := c.Level
 	if utils.Crossover(ema6, ema26) {
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
-		hasRecentInvestment := db.GetRecentInvestment(symbol, c.Period)
+		hasRecentInvestment := db.GetRecentInvestment(symbol, c.Period, true)
 		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atrRate, true)
-		checkTotalInvestment := db.CheckTotalInvestment(c)
+		checkTotalInvestment := db.CheckTotalInvestment(c, true)
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
 		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
 		if investCount < level && hasRecentInvestment == 0 && lowThanInvestmentAvgPrice {

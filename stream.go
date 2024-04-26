@@ -90,7 +90,11 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// }
 
 		// if strings.HasPrefix(message.ClientOrderID, "SIM-") {
-		investment := db.GetSumInvestment(message.Symbol)
+		var mode = false
+		if message.PositionSide == futures.PositionSideTypeLong {
+			mode = true
+		}
+		investment := db.GetSumInvestment(message.Symbol, mode)
 		if message.PositionSide == futures.PositionSideTypeShort && message.Side == futures.SideTypeBuy {
 			db.ClearHistory(message.Symbol, string(message.PositionSide))
 		}
