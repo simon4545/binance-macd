@@ -55,7 +55,7 @@ func InitConfig(c *Config) {
 	go func() {
 		for {
 			readConfig(c)
-			time.Sleep(time.Second * 60)
+			time.Sleep(time.Second * 10)
 		}
 	}()
 }

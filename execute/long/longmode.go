@@ -45,7 +45,7 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	investCount := db.GetInvestmentCount(symbol, true)
 	sumInvestment := db.GetSumInvestment(symbol, true)
 	balance := db.GetSumInvestmentQuantity(symbol, true)
-	rate := float64(investCount/2.0)/100.0 + 1
+	rate := float64(investCount)/3/100.0 + 1
 	atrRate := atr / lastPrice
 	// fmt.Println(symbol, config.AtrMap[symbol], atrRate)
 	level := c.Level

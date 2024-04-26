@@ -42,10 +42,10 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 	ema6 := talib.Ema(closingPrices, 6)
 	ema26 := talib.Ema(closingPrices, 26)
 
-	investCount := db.GetInvestmentCount(symbol, true)
-	sumInvestment := db.GetSumInvestment(symbol, true)
-	balance := db.GetSumInvestmentQuantity(symbol, true)
-	rate := 1 - float64(investCount/2.0)/100.0
+	investCount := db.GetInvestmentCount(symbol, false)
+	sumInvestment := db.GetSumInvestment(symbol, false)
+	balance := db.GetSumInvestmentQuantity(symbol, false)
+	rate := 1 - float64(investCount)/3/100.0
 	atrRate := atr / lastPrice
 	// fmt.Println(symbol, config.AtrMap[symbol], atrRate)
 	level := c.Level

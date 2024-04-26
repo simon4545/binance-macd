@@ -98,6 +98,7 @@ func checkCross(client *futures.Client, symbol string) {
 	if side == "BOTH" {
 		excutor := interfacer.Create("LONG", client)
 		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
+		time.Sleep(time.Second * 2)
 		excutors := interfacer.Create("SHORT", client)
 		excutors.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 	} else {

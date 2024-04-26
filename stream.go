@@ -106,6 +106,7 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 			fmt.Println("这是强平单空，要立即补仓", investment, message.ExecutionType)
 			if slices.Contains(symbols, message.Symbol) {
 				// 补仓
+				time.Sleep(time.Second * 3)
 				excutor := interfacer.Create(string(message.PositionSide), client)
 				excutor.CreateBuySide(client, conf, message.Symbol, investment, price)
 			}
