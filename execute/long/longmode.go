@@ -29,12 +29,13 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	if len(closingPrices) < 30 {
 		return
 	}
+
 	atr, exists := config.AtrMap.Get(symbol)
 	if !exists {
 		return
 	}
 	//TODO 如果FDUSD交易对，fee本身就是0，这里需要做一次单独处理
-	if config.LotSizeMap[symbol] == 0 || atr == 0 || config.FeeMap[symbol] == 0 {
+	if config.LotSizeMap[symbol] == 0 || atr[0] == 0 || config.FeeMap[symbol] == 0 {
 		fmt.Println("没有拿到精度")
 		return
 	}
@@ -46,13 +47,17 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	sumInvestment := db.GetSumInvestment(symbol, true)
 	balance := db.GetSumInvestmentQuantity(symbol, true)
 	rate := float64(investCount)/3/100.0 + 1
-	atrRate := atr / lastPrice
-	// fmt.Println(symbol, config.AtrMap[symbol], atrRate)
+	atrRate := atr[0] / lastPrice
+	fmt.Println(symbol, atr, atrRate)
 	level := c.Level
 	if utils.Crossover(ema6, ema26) {
+		if lastPrice >= atr[1] {
+			fmt.Println("价格太高了，不进了")
+			return
+		}
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
 		hasRecentInvestment := db.GetRecentInvestment(symbol, c.Period, true)
-		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atrRate, true)
+		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], true)
 		checkTotalInvestment := db.CheckTotalInvestment(c, true)
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
 		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
@@ -62,7 +67,7 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 				return
 			}
 			balance := utils.GetBalance(client, "USDT")
-			if balance < c.Symbols[symbol].Amount {
+			if balance*10 < c.Symbols[symbol].Amount {
 				fmt.Println(symbol, "余额不足", balance)
 				return
 			}

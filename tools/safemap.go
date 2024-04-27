@@ -2,12 +2,12 @@ package tools
 
 import "sync"
 
-type SafeMap[K string, V float64] struct {
+type SafeMap[K string, V []float64] struct {
 	m  map[K]V
 	mu sync.RWMutex
 }
 
-func NewSafeMap[K string, V float64]() *SafeMap[K, V] {
+func NewSafeMap[K string, V []float64]() *SafeMap[K, V] {
 	return &SafeMap[K, V]{
 		m: make(map[K]V),
 	}

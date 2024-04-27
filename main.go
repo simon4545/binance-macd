@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -60,7 +61,7 @@ func init() {
 
 	config.LotSizeMap = make(map[string]float64)
 	config.PriceFilterMap = make(map[string]float64)
-	config.AtrMap = tools.NewSafeMap[string, float64]()
+	config.AtrMap = tools.NewSafeMap[string, []float64]()
 	config.FeeMap = make(map[string]float64)
 
 	conf = &config.Config{}
@@ -94,6 +95,7 @@ func checkCross(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
+
 	side := conf.Symbols[symbol].Side
 	if side == "BOTH" {
 		excutor := interfacer.Create("LONG", client)
@@ -137,7 +139,7 @@ func checkAtr(client *futures.Client, symbol string) {
 		fmt.Println("交易对", pair, "不可交易")
 		return
 	}
-	klines, err := client.NewKlinesService().Symbol(pair).Interval("1h").Limit(100).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(pair).Interval("1h").Limit(300).Do(context.Background())
 	if err != nil {
 		print(err)
 		return
@@ -154,7 +156,10 @@ func checkAtr(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 	}
 	atr := talib.Atr(highPrices, lowPrices, closingPrices, 12)
-	config.AtrMap.Set(symbol, atr[len(atr)-1])
+	maxRecent := slices.Max(closingPrices[:len(closingPrices)-5])
+	minRecent := slices.Min(closingPrices[:len(closingPrices)-5])
+	val := []float64{atr[len(atr)-1], maxRecent, minRecent}
+	config.AtrMap.Set(symbol, val)
 	// fmt.Println(symbol, "atr", atrMap[symbol])
 }
 func CheckAtr(client *futures.Client) {

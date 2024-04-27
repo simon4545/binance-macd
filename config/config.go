@@ -11,7 +11,7 @@ import (
 )
 
 var OrderLocker sync.Mutex
-var AtrMap *tools.SafeMap[string, float64]
+var AtrMap *tools.SafeMap[string, []float64]
 var LotSizeMap map[string]float64
 var PriceFilterMap map[string]float64
 var FeeMap map[string]float64
