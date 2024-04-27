@@ -39,8 +39,8 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 		return
 	}
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
-	ema6 := talib.Ema(closingPrices, 6)
-	ema26 := talib.Ema(closingPrices, 26)
+	ema6 := talib.Ema(closingPrices, 5)
+	ema26 := talib.Ema(closingPrices, 20)
 
 	investCount := db.GetInvestmentCount(symbol, false)
 	sumInvestment := db.GetSumInvestment(symbol, false)
@@ -75,7 +75,7 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 		}
 	}
 	if investCount > 0 && balance > config.LotSizeMap[symbol] {
-		_atrRate := atrRate * 2.5
+		_atrRate := atrRate * 3.1
 		if (balance*lastPrice) <= sumInvestment*(1-_atrRate) || (utils.Crossover(ema6, ema26) && ((balance*lastPrice) < sumInvestment*rate || investCount >= level)) {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			fmt.Println(symbol, "出现金叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
