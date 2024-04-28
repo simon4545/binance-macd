@@ -100,7 +100,7 @@ func checkCross(client *futures.Client, symbol string) {
 	if side == "BOTH" {
 		excutor := interfacer.Create("LONG", client)
 		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * 1)
 		excutors := interfacer.Create("SHORT", client)
 		excutors.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 	} else {
@@ -139,7 +139,7 @@ func checkAtr(client *futures.Client, symbol string) {
 		fmt.Println("交易对", pair, "不可交易")
 		return
 	}
-	klines, err := client.NewKlinesService().Symbol(pair).Interval("1h").Limit(300).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(pair).Interval("1h").Limit(200).Do(context.Background())
 	if err != nil {
 		print(err)
 		return

@@ -160,6 +160,12 @@ func List(conf *config.Config, symbols *[]string) {
 	// 	return symbols[i].Percent > symbols[j].Percent
 	// })
 	// symbols = symbols[:100]
-	fmt.Println("总大小", len(*symbols))
+	Logln("总大小", len(*symbols))
 
+}
+func Logln(args ...interface{}) {
+	out := os.Stdout
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	fmt.Fprintf(out, "[%s] ", time.Now().In(loc).Format("2006-01-02 15:04:05"))
+	fmt.Fprintln(out, args...)
 }
