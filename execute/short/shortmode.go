@@ -50,17 +50,25 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 	fmt.Println(symbol, atr, atrRate)
 	level := c.Level
 	if utils.Crossdown(ema6, ema26) {
-		if lastPrice <= atr[2] {
+		if lastPrice <= atr[2]*1.05 {
 			fmt.Println("价格太低了，不空了")
 			return
 		}
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
-		hasRecentInvestment := db.GetRecentInvestment(symbol, c.Period, false)
+		recentInvestmentCount := db.GetRecentInvestment(symbol, c.Period, false)
 		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], false)
 		checkTotalInvestment := db.CheckTotalInvestment(c, false)
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
-		fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现死叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
-		if investCount < level && hasRecentInvestment == 0 && lowThanInvestmentAvgPrice {
+		db.MakeLog(symbol, fmt.Sprintf("SHORT 当前时间 %s 出现死叉 价格:%f 投资数 %f 投资次数:%d 最近投资:%d 持仓平均价:%t 总持仓数:%t",
+			time.Now().Format("2006-01-02 15:04:05"),
+			lastPrice,
+			sumInvestment,
+			investCount,
+			recentInvestmentCount,
+			lowThanInvestmentAvgPrice,
+			checkTotalInvestment,
+		))
+		if investCount < level && recentInvestmentCount == 0 && lowThanInvestmentAvgPrice {
 			if investCount <= 0 && !checkTotalInvestment {
 				fmt.Println(symbol, "投资达到总数")
 				return
@@ -75,10 +83,12 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 		}
 	}
 	if investCount > 0 && balance > config.LotSizeMap[symbol] {
-		_atrRate := atrRate * 3.1
-		if (balance*lastPrice) <= sumInvestment*(1-_atrRate) || (utils.Crossover(ema6, ema26) && ((balance*lastPrice) < sumInvestment*rate || investCount >= level)) {
+		_atrRate := atrRate * 4.1
+		cond1 := (balance * lastPrice) <= sumInvestment*(1-_atrRate)
+		cond2 := (utils.Crossover(ema6, ema26) && ((balance*lastPrice) < sumInvestment*rate || investCount >= level))
+		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-			fmt.Println(symbol, "出现金叉", "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
+			db.MakeLog(symbol, fmt.Sprintf("SHORT 出现金叉 GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", sumInvestment, investCount, cond1, cond2))
 			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
@@ -97,7 +107,9 @@ func (m *ShortMode) CreateSellSide(client *futures.Client, c *config.Config, sym
 func (m *ShortMode) CreateBuySide(client *futures.Client, c *config.Config, symbol string, amount, lastPrice float64) {
 	// 插入买单
 	fmt.Println("CreateBuySide", symbol, amount, lastPrice)
-	quantity := utils.RoundStepSize(amount/lastPrice, config.LotSizeMap[symbol])
+	damount := decimal.NewFromFloat(amount)
+	dlastPrice := decimal.NewFromFloat(lastPrice)
+	quantity := utils.RoundStepSize(damount.Div(dlastPrice).InexactFloat64(), config.LotSizeMap[symbol])
 	orderFilledChan := make(chan []string)
 	order := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "OPEN")
 	if order != nil {
@@ -106,11 +118,11 @@ func (m *ShortMode) CreateBuySide(client *futures.Client, c *config.Config, symb
 		if len(values) == 3 {
 			fmt.Println(symbol, values)
 			//TODO 市价单查不出交易的数量只能返回平均价和总投入
-			amount, _ = strconv.ParseFloat(values[0], 64)
-			price, _ := strconv.ParseFloat(values[2], 64)
-			quantity := amount / price
+			_amount, _ := decimal.NewFromString(values[0])
+			_price, _ := decimal.NewFromString(values[2])
+			// quantity := _amount.Div(_price).InexactFloat64()
 			// quantity = quantity * (1 - feeMap[pair])
-			db.InsertInvestment(symbol, amount, utils.RoundStepSize(quantity, config.LotSizeMap[symbol]), price, "SHORT")
+			db.InsertInvestment(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), "SHORT")
 		}
 	}
 }

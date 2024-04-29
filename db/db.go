@@ -24,6 +24,12 @@ type Investment struct {
 	Quantity  float64
 	UnitPrice float64
 }
+type Log struct {
+	ID        uint `gorm:"primaryKey"`
+	CreatedAt time.Time
+	Currency  string
+	Content   string
+}
 
 func InitDB() {
 	var err error
@@ -32,6 +38,10 @@ func InitDB() {
 		log.Fatal(err)
 	}
 	err = db.AutoMigrate(&Investment{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = db.AutoMigrate(&Log{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -61,9 +71,9 @@ func InvestmentAvgPrice(currency string, price, rate float64, longmode bool) boo
 		log.Fatal(result.Error)
 	}
 	if longmode {
-		return dbResult.Total == 0 || price <= (dbResult.Total-rate)
+		return dbResult.Total == 0 || price <= (dbResult.Total-rate*1.5)
 	} else {
-		return dbResult.Total == 0 || price >= (dbResult.Total+rate)
+		return dbResult.Total == 0 || price >= (dbResult.Total+rate*1.5)
 	}
 
 }
@@ -161,14 +171,9 @@ func InsertInvestment(currency string, amount float64, quantity, price float64, 
 	}
 }
 
-func MakeDBInvestment(invest Investment) {
-	var _invest Investment
-	result := db.Where("currency = ?", invest.Currency).Order("id desc").First(&_invest)
-	//如果存在记录，则更新
-	if result.RowsAffected > 0 && result.Error == nil {
-		_invest.Amount = invest.Amount
-		_invest.Quantity = invest.Quantity
-		_invest.UnitPrice = invest.UnitPrice
-		db.Save(&_invest)
-	}
+func MakeLog(symbol, content string) {
+	log := &Log{}
+	log.Content = content
+	log.Currency = symbol
+	db.Save(log)
 }
