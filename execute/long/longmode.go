@@ -60,15 +60,7 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], true)
 		checkTotalInvestment := db.CheckTotalInvestment(c, true)
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
-		db.MakeLog(symbol, fmt.Sprintf("LONG 当前时间 %s 出现金叉 价格:%f 投资数 %f 投资次数:%d 最近投资:%d 持仓平均价:%t 总持仓数:%t",
-			time.Now().Format("2006-01-02 15:04:05"),
-			lastPrice,
-			sumInvestment,
-			investCount,
-			recentInvestmentCount,
-			lowThanInvestmentAvgPrice,
-			checkTotalInvestment,
-		))
+
 		// fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
 		if investCount < level && recentInvestmentCount == 0 && lowThanInvestmentAvgPrice {
 			if investCount <= 0 && !checkTotalInvestment {
@@ -80,6 +72,15 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 				fmt.Println(symbol, "余额不足", balance)
 				return
 			}
+			db.MakeLog(symbol, fmt.Sprintf("LONG 当前时间 %s 出现金叉 价格:%f 投资数 %f 投资次数:%d 最近投资:%d 持仓平均价:%t 总持仓数:%t",
+				time.Now().Format("2006-01-02 15:04:05"),
+				lastPrice,
+				sumInvestment,
+				investCount,
+				recentInvestmentCount,
+				lowThanInvestmentAvgPrice,
+				checkTotalInvestment,
+			))
 			//插入买单
 			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice)
 		}
