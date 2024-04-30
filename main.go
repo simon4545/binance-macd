@@ -103,6 +103,9 @@ func checkCross(client *futures.Client, symbol string) {
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
 
 	side := conf.Symbols[symbol].Side
+	if side == "BOTH" {
+		side = "LONG|SHORT"
+	}
 	sides := strings.Split(side, "|")
 	for _, v := range sides {
 		excutor := interfacer.Create(v, client)
