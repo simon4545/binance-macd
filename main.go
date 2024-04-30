@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/adshao/go-binance/v2"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/simon4545/binance-macd/config"
 	"github.com/simon4545/binance-macd/db"
+	_ "github.com/simon4545/binance-macd/execute/fastlong"
+	_ "github.com/simon4545/binance-macd/execute/fastshort"
 	_ "github.com/simon4545/binance-macd/execute/long"
 	_ "github.com/simon4545/binance-macd/execute/short"
 	"github.com/simon4545/binance-macd/interfacer"
@@ -86,28 +89,26 @@ func checkCross(client *futures.Client, symbol string) {
 	closingPrices := []float64{}
 	highPrices := []float64{}
 	lowPrices := []float64{}
+	volumes := []float64{}
 	for _, kline := range klines {
 		close, _ := strconv.ParseFloat(kline.Close, 64)
 		high, _ := strconv.ParseFloat(kline.High, 64)
 		low, _ := strconv.ParseFloat(kline.Low, 64)
+		volume, _ := strconv.ParseFloat(kline.Volume, 64)
 		closingPrices = append(closingPrices, close)
 		highPrices = append(highPrices, high)
 		lowPrices = append(lowPrices, low)
+		volumes = append(volumes, volume)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
 
 	side := conf.Symbols[symbol].Side
-	if side == "BOTH" {
-		excutor := interfacer.Create("LONG", client)
-		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
+	sides := strings.Split(side, "|")
+	for _, v := range sides {
+		excutor := interfacer.Create(v, client)
+		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices, volumes)
 		time.Sleep(time.Second * 1)
-		excutors := interfacer.Create("SHORT", client)
-		excutors.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
-	} else {
-		excutor := interfacer.Create(side, client)
-		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices)
 	}
-
 }
 
 func CheckCross(client *futures.Client) {

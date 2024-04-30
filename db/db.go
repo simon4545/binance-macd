@@ -2,7 +2,6 @@ package db
 
 import (
 	"log"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,7 +32,13 @@ type Log struct {
 
 func InitDB() {
 	var err error
-	db, err = gorm.Open(sqlite.Open("future.db?_loc=Asia/Shanghai"), &gorm.Config{})
+	db, err = gorm.Open(sqlite.Open("future.db?_loc=Asia/Shanghai"), &gorm.Config{
+		NowFunc: func() time.Time {
+			loc, _ := time.LoadLocation("Asia/Shanghai")
+			return time.Now().In(loc)
+		},
+	})
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -47,12 +52,8 @@ func InitDB() {
 	}
 }
 
-func GetInvestmentCount(currency string, longmode bool) int64 {
+func GetInvestmentCount(currency string, mode string) int64 {
 	var count int64
-	var mode = "SHORT"
-	if longmode {
-		mode = "LONG"
-	}
 	result := db.Model(&Investment{}).Where("currency = ? and operate= ?", currency, mode).Count(&count)
 	if result.Error != nil {
 		log.Fatal(result.Error)
@@ -60,28 +61,23 @@ func GetInvestmentCount(currency string, longmode bool) int64 {
 	return count
 }
 
-func InvestmentAvgPrice(currency string, price, rate float64, longmode bool) bool {
+func InvestmentAvgPrice(currency string, price, rate float64, mode string) bool {
 	dbResult := &Result{}
-	var mode = "SHORT"
-	if longmode {
-		mode = "LONG"
-	}
 	result := db.Model(&Investment{}).Select("unit_price as Total").Where("currency = ? and operate= ? ", currency, mode).Order("id DESC").Limit(1).Scan(dbResult)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
-	if longmode {
+	if strings.HasSuffix(mode, "LONG") {
 		return dbResult.Total == 0 || price <= (dbResult.Total-rate*1.5)
 	} else {
 		return dbResult.Total == 0 || price >= (dbResult.Total+rate*1.5)
 	}
-
 }
 
-func ClearHistory(currency, side string) {
+func ClearHistory(currency, mode string) {
 	var result *gorm.DB
-	if slices.Contains([]string{"LONG", "SHORT"}, side) {
-		result = db.Exec("DELETE FROM investments where currency = ? and operate = ? ", currency, side)
+	if mode != "" {
+		result = db.Exec("DELETE FROM investments where currency = ? and operate = ? ", currency, mode)
 	} else {
 		result = db.Exec("DELETE FROM investments where currency = ? ", currency)
 	}
@@ -99,26 +95,18 @@ func ConvertToSeconds(s string) int {
 	}
 	return i * utils.SecondsPerUnit[sValue[len(sValue)-1]]
 }
-func GetRecentInvestment(currency string, period string, longmode bool) int64 {
+func GetRecentInvestment(currency string, period string, mode string) int64 {
 	intPeriod := ConvertToSeconds(period)
 	current := time.Now().Add(-time.Duration(intPeriod*5) * time.Second)
 	var count int64
-	var mode = "SHORT"
-	if longmode {
-		mode = "LONG"
-	}
 	result := db.Model(&Investment{}).Where("created_at >= ? and currency = ? and operate= ? ", current, currency, mode).Count(&count)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
 	return count
 }
-func CheckTotalInvestment(conf *config.Config, longmode bool) bool {
+func CheckTotalInvestment(conf *config.Config, mode string) bool {
 	var count int64
-	var mode = "SHORT"
-	if longmode {
-		mode = "LONG"
-	}
 	result := db.Model(&Investment{}).Where("operate= ? ", mode).Count(&count)
 	if result.Error != nil {
 		log.Fatal(result.Error)
@@ -130,12 +118,8 @@ type Result struct {
 	Total float64
 }
 
-func GetSumInvestment(currency string, longmode bool) float64 {
+func GetSumInvestment(currency string, mode string) float64 {
 	dbResult := &Result{}
-	var mode = "SHORT"
-	if longmode {
-		mode = "LONG"
-	}
 	result := db.Model(&Investment{}).Select("SUM(amount) as Total").Where("currency = ? and operate= ? ", currency, mode).Scan(dbResult)
 	if result.Error != nil {
 		log.Fatal(result.Error)
@@ -145,11 +129,7 @@ func GetSumInvestment(currency string, longmode bool) float64 {
 	// }
 	return dbResult.Total
 }
-func GetSumInvestmentQuantity(currency string, longmode bool) float64 {
-	var mode = "SHORT"
-	if longmode {
-		mode = "LONG"
-	}
+func GetSumInvestmentQuantity(currency string, mode string) float64 {
 	dbResult := &Result{}
 	result := db.Model(&Investment{}).Select("SUM(quantity) as Total").Where("currency = ? and operate= ?", currency, mode).Scan(dbResult)
 	if result.Error != nil {

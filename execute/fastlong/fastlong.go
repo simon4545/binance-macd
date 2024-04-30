@@ -1,13 +1,13 @@
-package long
+package fastlong
 
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
-	"github.com/markcheno/go-talib"
 	"github.com/shopspring/decimal"
 	"github.com/simon4545/binance-macd/config"
 	"github.com/simon4545/binance-macd/db"
@@ -16,20 +16,26 @@ import (
 )
 
 func init() {
-	t := &LongMode{}
-	interfacer.Register("LONG", t)
+	t := &FastLongMode{}
+	interfacer.Register("FASTLONG", t)
 }
 
-type LongMode struct {
+type FastLongMode struct {
 }
 
-func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64, volumes []float64) {
+func avg(list []float64) float64 {
+	var total float64 = 0
+	for _, value := range list {
+		total += value
+	}
+	return total / float64(len(list))
+}
+func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64, volumes []float64) {
 	config.OrderLocker.Lock()
 	defer config.OrderLocker.Unlock()
 	if len(closingPrices) < 30 {
 		return
 	}
-
 	atr, exists := config.AtrMap.Get(symbol)
 	if !exists {
 		return
@@ -40,79 +46,62 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 		return
 	}
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
-	ema6 := talib.Ema(closingPrices, 5)
-	ema26 := talib.Ema(closingPrices, 20)
-
-	investCount := db.GetInvestmentCount(symbol, "LONG")
-	sumInvestment := db.GetSumInvestment(symbol, "LONG")
-	balance := db.GetSumInvestmentQuantity(symbol, "LONG")
-	rate := float64(investCount)/3/100.0 + 1
+	length := len(closingPrices)
+	maxInLast20 := slices.Max(closingPrices[length-20 : length-1])
+	maxInLast5 := slices.Max(closingPrices[length-6 : length-1])
+	minInLast3 := slices.Min(closingPrices[length-4 : length-1])
+	investCount := db.GetInvestmentCount(symbol, "FASTLONG")
+	sumInvestment := db.GetSumInvestment(symbol, "FASTLONG")
+	balance := db.GetSumInvestmentQuantity(symbol, "FASTLONG")
 	atrRate := atr[0] / lastPrice
 	fmt.Println(symbol, atr, atrRate)
-	level := c.Level
-	if utils.Crossover(ema6, ema26) {
+	if lastPrice >= maxInLast5 && lastPrice < maxInLast20 {
 		if lastPrice >= atr[1]*0.95 {
 			fmt.Println("价格太高了，不进了")
 			return
 		}
-		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
-		recentInvestmentCount := db.GetRecentInvestment(symbol, c.Period, "LONG")
-		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], "LONG")
-		checkTotalInvestment := db.CheckTotalInvestment(c, "LONG")
-		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
-
-		// fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
-		if investCount < level && recentInvestmentCount == 0 && lowThanInvestmentAvgPrice {
-			if investCount <= 0 && !checkTotalInvestment {
-				fmt.Println(symbol, "投资达到总数")
-				return
-			}
+		volumeLargeThenAvg := closingPrices[length-1] > avg(volumes[length-6:length-1])*1.5
+		if investCount == 0 && volumeLargeThenAvg {
 			balance := utils.GetBalance(client, "USDT")
 			if balance*10 < c.Symbols[symbol].Amount {
 				fmt.Println(symbol, "余额不足", balance)
 				return
 			}
-			db.MakeLog(symbol, fmt.Sprintf("LONG 当前时间 %s 出现金叉 价格:%f 投资数 %f 投资次数:%d 最近投资:%d 持仓平均价:%t 总持仓数:%t",
+			//插入买单
+			db.MakeLog(symbol, fmt.Sprintf("FASTLONG 当前时间 %s 出现急速下跌 价格:%f ",
 				time.Now().Format("2006-01-02 15:04:05"),
 				lastPrice,
-				sumInvestment,
-				investCount,
-				recentInvestmentCount,
-				lowThanInvestmentAvgPrice,
-				checkTotalInvestment,
 			))
-			//插入买单
 			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice)
 		}
 	}
 	if investCount > 0 && balance > config.LotSizeMap[symbol] {
-		_atrRate := atrRate * 4.1
-		cond1 := (balance * lastPrice) >= sumInvestment*(1+_atrRate)
-		cond2 := (utils.Crossdown(ema6, ema26) && ((balance*lastPrice) > sumInvestment*rate || investCount >= level))
+		_atrRate := atrRate * 3.1
+		cond1 := (balance * lastPrice) <= sumInvestment*(1-_atrRate)
+		cond2 := lastPrice <= minInLast3
 		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-			// fmt.Print("出现死叉", lotSizeMap[symbol])
-			db.MakeLog(symbol, fmt.Sprintf("LONG 出现死叉 GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", sumInvestment, investCount, cond1, cond2))
+			db.MakeLog(symbol, fmt.Sprintf("FASTLONG 出现回落 GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", sumInvestment, investCount, cond1, cond2))
 			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
 }
-func (m *LongMode) CreateSellSide(client *futures.Client, c *config.Config, symbol string, balance float64) {
+
+func (m *FastLongMode) CreateSellSide(client *futures.Client, c *config.Config, symbol string, balance float64) {
 	quantity := utils.RoundStepSize(balance, config.LotSizeMap[symbol])
 	fmt.Println(symbol, "quantity", quantity)
 	// 插入卖单
 	ret := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
-		db.ClearHistory(symbol, "LONG")
+		db.ClearHistory(symbol, "FASTLONG")
 	}
 }
 
-func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbol string, amount, lastPrice float64) {
+func (m *FastLongMode) CreateBuySide(client *futures.Client, c *config.Config, symbol string, amount, lastPrice float64) {
 	// 插入买单
 	fmt.Println("CreateBuySide", symbol, amount, lastPrice)
 	damount := decimal.NewFromFloat(amount)
 	dlastPrice := decimal.NewFromFloat(lastPrice)
-
 	quantity := utils.RoundStepSize(damount.Div(dlastPrice).InexactFloat64(), config.LotSizeMap[symbol])
 	orderFilledChan := make(chan []string)
 	order := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "OPEN")
@@ -126,19 +115,21 @@ func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbo
 			_price, _ := decimal.NewFromString(values[2])
 			// quantity := _amount.Div(_price).InexactFloat64()
 			// quantity = quantity * (1 - feeMap[pair])
-			db.InsertInvestment(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), "LONG")
+			db.InsertInvestment(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), "FASTLONG")
 		}
 	}
 }
 
-func (m *LongMode) createMarketOrder(client *futures.Client, pair string, quantity string, side string) (order *futures.CreateOrderResponse) {
+func (m *FastLongMode) createMarketOrder(client *futures.Client, pair string, quantity string, side string) (order *futures.CreateOrderResponse) {
 	var sideType futures.SideType
 	var err error
+	// 开空
 	if side == "OPEN" {
 		sideType = futures.SideTypeBuy
 		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeLong).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	} else {
+		// 平空
 		sideType = futures.SideTypeSell
 		quantityF, _ := decimal.NewFromString(quantity)
 		step := decimal.NewFromFloat(config.LotSizeMap[pair])

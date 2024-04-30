@@ -6,7 +6,7 @@ import (
 )
 
 type Executor interface {
-	Handle(*futures.Client, *config.Config, string, float64, []float64, []float64, []float64)
+	Handle(*futures.Client, *config.Config, string, float64, []float64, []float64, []float64, []float64)
 	CreateSellSide(*futures.Client, *config.Config, string, float64)
 	CreateBuySide(*futures.Client, *config.Config, string, float64, float64)
 }
@@ -21,6 +21,6 @@ func Create(name string, client *futures.Client) Executor {
 	if f, ok := factoryByName[name]; ok {
 		return f
 	} else {
-		panic("Strategy Name undefined")
+		panic("无效的模式，目前仅支持 LONG SHORT FASTSHORT FASTLONG ，可以同时使用，用|隔开")
 	}
 }

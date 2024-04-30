@@ -90,9 +90,9 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 		// }
 
 		// if strings.HasPrefix(message.ClientOrderID, "SIM-") {
-		var mode = false
+		var mode = "SHORT"
 		if message.PositionSide == futures.PositionSideTypeLong {
-			mode = true
+			mode = "LONG"
 		}
 		investment := db.GetSumInvestment(message.Symbol, mode)
 		if message.PositionSide == futures.PositionSideTypeShort && message.Side == futures.SideTypeBuy {
@@ -111,6 +111,5 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 				excutor.CreateBuySide(client, conf, message.Symbol, investment, price)
 			}
 		}
-
 	}
 }
