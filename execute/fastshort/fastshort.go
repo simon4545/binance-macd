@@ -83,7 +83,7 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 		cond2 := lastPrice >= maxInLast3
 		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-			db.MakeLog(symbol, fmt.Sprintf("FASTSHORT 出现回升 GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", sumInvestment, investCount, cond1, cond2))
+			db.MakeLog(symbol, fmt.Sprintf("FASTSHORT 出现回升 %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, sumInvestment, investCount, cond1, cond2))
 			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
