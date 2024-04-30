@@ -18,6 +18,9 @@ func Register(name string, factory Executor) {
 }
 
 func Create(name string, client *futures.Client) Executor {
+	if name == "BOTH" {
+		panic("BOTH模式不再支持，请改用LONG|SHORT写法，中间是|符号")
+	}
 	if f, ok := factoryByName[name]; ok {
 		return f
 	} else {

@@ -60,7 +60,7 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 			fmt.Println("价格太低了，不空了")
 			return
 		}
-		volumeLargeThenAvg := closingPrices[length-1] > avg(volumes[length-6:length-1])*1.5
+		volumeLargeThenAvg := closingPrices[length-1] > avg(volumes[length-6:length-1])*2
 		if investCount == 0 && volumeLargeThenAvg {
 			balance := utils.GetBalance(client, "USDT")
 			if balance*10 < c.Symbols[symbol].Amount {
