@@ -47,7 +47,7 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 	}
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
 	length := len(closingPrices)
-	maxInLast20 := slices.Max(closingPrices[length-99 : length-1])
+	// maxInLast20 := slices.Max(closingPrices[length-99 : length-1])
 	maxInLast5 := slices.Max(closingPrices[length-6 : length-1])
 	minInLast3 := slices.Min(closingPrices[length-4 : length-1])
 	avgVolume := avg(volumes[length-6 : length-1])
@@ -56,7 +56,7 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 	balance := db.GetSumInvestmentQuantity(symbol, "FASTLONG")
 	atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate, avgVolume)
-	if lastPrice >= maxInLast5 && lastPrice < maxInLast20 {
+	if lastPrice >= maxInLast5 {
 		// if lastPrice >= atr[1]*0.95 {
 		// 	fmt.Println(symbol, "FASTLONG 价格太高了，不进了")
 		// 	return

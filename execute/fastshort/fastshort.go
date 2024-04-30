@@ -47,7 +47,7 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 	}
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
 	length := len(closingPrices)
-	minInLast20 := slices.Min(closingPrices[length-99 : length-1])
+	// minInLast20 := slices.Min(closingPrices[length-99 : length-1])
 	minInLast5 := slices.Min(closingPrices[length-6 : length-1])
 	avgVolume := avg(volumes[length-6 : length-1])
 	maxInLast3 := slices.Max(closingPrices[length-4 : length-1])
@@ -56,7 +56,7 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 	balance := db.GetSumInvestmentQuantity(symbol, "FASTSHORT")
 	atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate, avgVolume)
-	if lastPrice <= minInLast5 && lastPrice > minInLast20 {
+	if lastPrice <= minInLast5 {
 		// if lastPrice <= atr[2]*1.05 {
 		// 	fmt.Println(symbol, "FASTSHORT 价格太低了，不空了")
 		// 	return
