@@ -47,7 +47,7 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 	balance := db.GetSumInvestmentQuantity(symbol, "SHORT")
 	rate := 1 - float64(investCount)/3/100.0
 	atrRate := atr[0] / lastPrice
-	fmt.Println(symbol, atr, atrRate)
+	// fmt.Println(symbol, atr, atrRate)
 	level := c.Level
 	if utils.Crossdown(ema6, ema26) {
 		if lastPrice <= atr[2]*1.05 {

@@ -48,7 +48,7 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	balance := db.GetSumInvestmentQuantity(symbol, "LONG")
 	rate := float64(investCount)/3/100.0 + 1
 	atrRate := atr[0] / lastPrice
-	fmt.Println(symbol, atr, atrRate)
+	// fmt.Println(symbol, atr, atrRate)
 	level := c.Level
 	if utils.Crossover(ema6, ema26) {
 		if lastPrice >= atr[1]*0.95 {

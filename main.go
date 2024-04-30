@@ -78,7 +78,13 @@ func init() {
 	client.HTTPClient = &c
 	binance.WebsocketKeepalive = true
 }
-
+func avg(list []float64) float64 {
+	var total float64 = 0
+	for _, value := range list {
+		total += value
+	}
+	return total / float64(len(list))
+}
 func checkCross(client *futures.Client, symbol string) {
 	// defer time.Sleep(4 * time.Second)
 	klines, err := client.NewKlinesService().Symbol(symbol).Interval(conf.Period).Limit(100).Do(context.Background())
@@ -101,7 +107,12 @@ func checkCross(client *futures.Client, symbol string) {
 		volumes = append(volumes, volume)
 	}
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
-
+	atr, exists := config.AtrMap.Get(symbol)
+	if !exists {
+		return
+	}
+	length := len(closingPrices)
+	fmt.Println(symbol, atr, atr[0]/lastPrice, avg(volumes[length-6:length-1]))
 	side := conf.Symbols[symbol].Side
 	if side == "BOTH" {
 		side = "LONG|SHORT"

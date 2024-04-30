@@ -50,17 +50,18 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 	maxInLast20 := slices.Max(closingPrices[length-20 : length-1])
 	maxInLast5 := slices.Max(closingPrices[length-6 : length-1])
 	minInLast3 := slices.Min(closingPrices[length-4 : length-1])
+	avgVolume := avg(volumes[length-6 : length-1])
 	investCount := db.GetInvestmentCount(symbol, "FASTLONG")
 	sumInvestment := db.GetSumInvestment(symbol, "FASTLONG")
 	balance := db.GetSumInvestmentQuantity(symbol, "FASTLONG")
 	atrRate := atr[0] / lastPrice
-	fmt.Println(symbol, atr, atrRate)
+	// fmt.Println(symbol, atr, atrRate, avgVolume)
 	if lastPrice >= maxInLast5 && lastPrice < maxInLast20 {
 		if lastPrice >= atr[1]*0.95 {
 			fmt.Println("价格太高了，不进了")
 			return
 		}
-		volumeLargeThenAvg := closingPrices[length-1] > avg(volumes[length-6:length-1])*2
+		volumeLargeThenAvg := closingPrices[length-1] > avgVolume*2
 		if investCount == 0 && volumeLargeThenAvg {
 			balance := utils.GetBalance(client, "USDT")
 			if balance*10 < c.Symbols[symbol].Amount {
