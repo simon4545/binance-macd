@@ -33,7 +33,7 @@ func avg(list []float64) float64 {
 func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64, volumes []float64) {
 	config.OrderLocker.Lock()
 	defer config.OrderLocker.Unlock()
-	if len(closingPrices) < 30 {
+	if len(closingPrices) < 100 {
 		return
 	}
 	atr, exists := config.AtrMap.Get(symbol)
@@ -47,7 +47,7 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 	}
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
 	length := len(closingPrices)
-	maxInLast20 := slices.Max(closingPrices[length-20 : length-1])
+	maxInLast20 := slices.Max(closingPrices[length-99 : length-1])
 	maxInLast5 := slices.Max(closingPrices[length-6 : length-1])
 	minInLast3 := slices.Min(closingPrices[length-4 : length-1])
 	avgVolume := avg(volumes[length-6 : length-1])
@@ -57,11 +57,12 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 	atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate, avgVolume)
 	if lastPrice >= maxInLast5 && lastPrice < maxInLast20 {
-		if lastPrice >= atr[1]*0.95 {
-			fmt.Println("价格太高了，不进了")
-			return
-		}
-		volumeLargeThenAvg := closingPrices[length-1] > avgVolume*2
+		// if lastPrice >= atr[1]*0.95 {
+		// 	fmt.Println(symbol, "FASTLONG 价格太高了，不进了")
+		// 	return
+		// }
+		fmt.Println(symbol, volumes[length-1], avgVolume)
+		volumeLargeThenAvg := volumes[length-1] > avgVolume*2
 		if investCount == 0 && volumeLargeThenAvg {
 			balance := utils.GetBalance(client, "USDT")
 			if balance*10 < c.Symbols[symbol].Amount {

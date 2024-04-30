@@ -50,6 +50,8 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate)
 	level := c.Level
+	// utils.Crossover(ema6, ema26)
+	// ema6[len(ema6)-1] > ema26[len(ema26)-1]
 	if utils.Crossover(ema6, ema26) {
 		if lastPrice >= atr[1]*0.95 {
 			fmt.Println("价格太高了，不进了")
@@ -58,28 +60,27 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
 		recentInvestmentCount := db.GetRecentInvestment(symbol, c.Period, "LONG")
 		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], "LONG")
-		checkTotalInvestment := db.CheckTotalInvestment(c, "LONG")
+		// checkTotalInvestment := db.CheckTotalInvestment(c, "LONG")
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
 
 		// fmt.Println(symbol, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice, "投资数", investCount, "最近是否有投资", hasRecentInvestment, "持仓平均价", lowThanInvestmentAvgPrice, "总持仓数", checkTotalInvestment)
 		if investCount < level && recentInvestmentCount == 0 && lowThanInvestmentAvgPrice {
-			if investCount <= 0 && !checkTotalInvestment {
-				fmt.Println(symbol, "投资达到总数")
-				return
-			}
+			// if investCount <= 0 && !checkTotalInvestment {
+			// 	fmt.Println(symbol, "投资达到总数")
+			// 	return
+			// }
 			balance := utils.GetBalance(client, "USDT")
 			if balance*10 < c.Symbols[symbol].Amount {
 				fmt.Println(symbol, "余额不足", balance)
 				return
 			}
-			db.MakeLog(symbol, fmt.Sprintf("LONG 当前时间 %s 出现金叉 价格:%f 投资数 %f 投资次数:%d 最近投资:%d 持仓平均价:%t 总持仓数:%t",
+			db.MakeLog(symbol, fmt.Sprintf("LONG 当前时间 %s 出现金叉 价格:%f 投资数 %f 投资次数:%d 最近投资:%d 持仓平均价:%t",
 				time.Now().Format("2006-01-02 15:04:05"),
 				lastPrice,
 				sumInvestment,
 				investCount,
 				recentInvestmentCount,
 				lowThanInvestmentAvgPrice,
-				checkTotalInvestment,
 			))
 			//插入买单
 			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice)
