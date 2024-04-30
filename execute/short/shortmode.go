@@ -50,7 +50,7 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 	// fmt.Println(symbol, atr, atrRate)
 	level := c.Level
 	if utils.Crossdown(ema6, ema26) {
-		if lastPrice <= atr[2]*1.05 {
+		if lastPrice <= atr[2]*1.02 {
 			fmt.Println("价格太低了，不空了")
 			return
 		}

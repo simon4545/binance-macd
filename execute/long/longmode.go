@@ -53,7 +53,7 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	// utils.Crossover(ema6, ema26)
 	// ema6[len(ema6)-1] > ema26[len(ema26)-1]
 	if utils.Crossover(ema6, ema26) {
-		if lastPrice >= atr[1]*0.95 {
+		if lastPrice >= atr[1]*0.98 {
 			fmt.Println("价格太高了，不进了")
 			return
 		}

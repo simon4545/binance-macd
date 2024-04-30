@@ -62,7 +62,7 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 		// 	return
 		// }
 		fmt.Println(symbol, volumes[length-1], avgVolume)
-		volumeLargeThenAvg := volumes[length-1] > avgVolume*2
+		volumeLargeThenAvg := volumes[length-1] > avgVolume*2.5
 		if investCount == 0 && volumeLargeThenAvg {
 			balance := utils.GetBalance(client, "USDT")
 			if balance*10 < c.Symbols[symbol].Amount {
@@ -70,7 +70,7 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 				return
 			}
 			//插入买单
-			db.MakeLog(symbol, fmt.Sprintf("FASTLONG 当前时间 %s 出现急速下跌 价格:%f ",
+			db.MakeLog(symbol, fmt.Sprintf("FASTLONG 当前时间 %s 出现急速上涨 价格:%f ",
 				time.Now().Format("2006-01-02 15:04:05"),
 				lastPrice,
 			))

@@ -62,7 +62,7 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 		// 	return
 		// }
 		fmt.Println(symbol, volumes[length-1], avgVolume)
-		volumeLargeThenAvg := volumes[length-1] > avgVolume*2
+		volumeLargeThenAvg := volumes[length-1] > avgVolume*2.5
 		if investCount == 0 && volumeLargeThenAvg {
 			balance := utils.GetBalance(client, "USDT")
 			if balance*10 < c.Symbols[symbol].Amount {

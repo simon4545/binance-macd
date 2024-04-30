@@ -121,7 +121,7 @@ func checkCross(client *futures.Client, symbol string) {
 	for _, v := range sides {
 		excutor := interfacer.Create(v, client)
 		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices, volumes)
-		time.Sleep(time.Second * 1)
+		time.Sleep(time.Millisecond * 500)
 	}
 }
 
@@ -129,7 +129,7 @@ func CheckCross(client *futures.Client) {
 	for {
 		utils.List(conf, &symbols)
 		// fmt.Println(time.Now(), "开启新的一启")
-		swg := sizedwaitgroup.New(4)
+		swg := sizedwaitgroup.New(8)
 		for _, s := range symbols {
 			swg.Add()
 			go func(pair string) {
@@ -144,7 +144,7 @@ func CheckCross(client *futures.Client) {
 			}(s)
 		}
 		swg.Wait()
-		time.Sleep(time.Second * 6)
+		time.Sleep(time.Second * 4)
 	}
 }
 
