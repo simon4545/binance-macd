@@ -177,6 +177,7 @@ func Insert(currency string, amount float64, quantity, price, tp, sl float64, si
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
+	SetOrderCache(currency)
 }
 func InsertInvestment(currency string, amount float64, quantity, price float64, side string) {
 	investment := Investment{

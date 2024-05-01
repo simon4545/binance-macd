@@ -3,6 +3,7 @@ package fastshort
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"time"
@@ -16,11 +17,12 @@ import (
 )
 
 func init() {
-	t := &FastShortMode{}
-	interfacer.Register("FASTSHORT", t)
+	t := &FastShortMode{ModeName: "FASTSHORT"}
+	interfacer.Register(t.ModeName, t)
 }
 
 type FastShortMode struct {
+	ModeName string
 }
 
 func avg(list []float64) float64 {
@@ -51,10 +53,10 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 	minInLast5 := slices.Min(closingPrices[length-6 : length-1])
 	avgVolume := avg(volumes[length-6 : length-1])
 	maxInLast3 := slices.Max(closingPrices[length-4 : length-1])
-	investCount := db.GetInvestmentCount(symbol, "FASTSHORT")
-	lastInvest := db.InvestmentAvgPrice1(symbol, "FASTSHORT")
-	sumInvestment := db.GetSumInvestment(symbol, "FASTSHORT")
-	balance := db.GetSumInvestmentQuantity(symbol, "FASTSHORT")
+	investCount := db.GetInvestmentCount(symbol, m.ModeName)
+	lastInvest := db.InvestmentAvgPrice1(symbol, m.ModeName)
+	sumInvestment := db.GetSumInvestment(symbol, m.ModeName)
+	balance := db.GetSumInvestmentQuantity(symbol, m.ModeName)
 	// atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate, avgVolume)
 	if lastPrice <= minInLast5 && lastPrice > minInLast20 && !db.GetOrderCache(symbol) {
@@ -88,7 +90,7 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 
 		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-			db.MakeLog(symbol, fmt.Sprintf("FASTSHORT 出场 %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, sumInvestment, investCount, cond1, cond2))
+			db.MakeLog(symbol, fmt.Sprintf("FASTSHORT 出场 %f %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, lastInvest.TakeProfit, sumInvestment, investCount, cond1, cond2))
 			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
@@ -100,7 +102,7 @@ func (m *FastShortMode) CreateSellSide(client *futures.Client, c *config.Config,
 	// 插入卖单
 	ret := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
-		db.ClearHistory(symbol, "FASTSHORT")
+		db.ClearHistory(symbol, m.ModeName)
 	}
 }
 
@@ -122,8 +124,8 @@ func (m *FastShortMode) CreateBuySide(client *futures.Client, c *config.Config, 
 			_price, _ := decimal.NewFromString(values[2])
 			// quantity := _amount.Div(_price).InexactFloat64()
 			// quantity = quantity * (1 - feeMap[pair])
-			tp := sl - (sl-lastPrice)*1.5
-			db.Insert(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), tp, sl, "FASTSHORT")
+			tp := sl - math.Abs(sl-lastPrice)*1.5
+			db.Insert(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), tp, sl, m.ModeName)
 		}
 	}
 }

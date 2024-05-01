@@ -3,6 +3,7 @@ package fastlong
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"time"
@@ -16,11 +17,12 @@ import (
 )
 
 func init() {
-	t := &FastLongMode{}
-	interfacer.Register("FASTLONG", t)
+	t := &FastLongMode{ModeName: "FASTLONG"}
+	interfacer.Register(t.ModeName, t)
 }
 
 type FastLongMode struct {
+	ModeName string
 }
 
 func avg(list []float64) float64 {
@@ -51,10 +53,10 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 	maxInLast5 := slices.Max(closingPrices[length-6 : length-1])
 	minInLast3 := slices.Min(closingPrices[length-4 : length-1])
 	avgVolume := avg(volumes[length-6 : length-1])
-	investCount := db.GetInvestmentCount(symbol, "FASTLONG")
-	lastInvest := db.InvestmentAvgPrice1(symbol, "FASTSHORT")
-	sumInvestment := db.GetSumInvestment(symbol, "FASTLONG")
-	balance := db.GetSumInvestmentQuantity(symbol, "FASTLONG")
+	investCount := db.GetInvestmentCount(symbol, m.ModeName)
+	lastInvest := db.InvestmentAvgPrice1(symbol, m.ModeName)
+	sumInvestment := db.GetSumInvestment(symbol, m.ModeName)
+	balance := db.GetSumInvestmentQuantity(symbol, m.ModeName)
 	// atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate, avgVolume)
 	if lastPrice >= maxInLast5 && lastPrice < maxInLast20 && !db.GetOrderCache(symbol) {
@@ -86,7 +88,7 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 		cond2 := lastPrice <= minInLast3
 		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-			db.MakeLog(symbol, fmt.Sprintf("FASTLONG 出场 %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, sumInvestment, investCount, cond1, cond2))
+			db.MakeLog(symbol, fmt.Sprintf("FASTLONG 出场 %f %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, lastInvest.TakeProfit, sumInvestment, investCount, cond1, cond2))
 			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
@@ -98,7 +100,7 @@ func (m *FastLongMode) CreateSellSide(client *futures.Client, c *config.Config, 
 	// 插入卖单
 	ret := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
-		db.ClearHistory(symbol, "FASTLONG")
+		db.ClearHistory(symbol, m.ModeName)
 	}
 }
 
@@ -120,8 +122,8 @@ func (m *FastLongMode) CreateBuySide(client *futures.Client, c *config.Config, s
 			_price, _ := decimal.NewFromString(values[2])
 			// quantity := _amount.Div(_price).InexactFloat64()
 			// quantity = quantity * (1 - feeMap[pair])
-			tp := sl + (lastPrice-sl)*1.5
-			db.Insert(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), tp, sl, "FASTLONG")
+			tp := sl + math.Abs(lastPrice-sl)*1.5
+			db.Insert(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), tp, sl, m.ModeName)
 		}
 	}
 }

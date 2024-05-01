@@ -16,11 +16,12 @@ import (
 )
 
 func init() {
-	t := &ShortMode{}
-	interfacer.Register("SHORT", t)
+	t := &ShortMode{ModeName: "SHORT"}
+	interfacer.Register(t.ModeName, t)
 }
 
 type ShortMode struct {
+	ModeName string
 }
 
 func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64, volumes []float64) {
@@ -42,9 +43,9 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 	ema6 := talib.Ema(closingPrices, 5)
 	ema26 := talib.Ema(closingPrices, 20)
 
-	investCount := db.GetInvestmentCount(symbol, "SHORT")
-	sumInvestment := db.GetSumInvestment(symbol, "SHORT")
-	balance := db.GetSumInvestmentQuantity(symbol, "SHORT")
+	investCount := db.GetInvestmentCount(symbol, m.ModeName)
+	sumInvestment := db.GetSumInvestment(symbol, m.ModeName)
+	balance := db.GetSumInvestmentQuantity(symbol, m.ModeName)
 	rate := 1 - float64(investCount)/3/100.0
 	atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate)
@@ -55,8 +56,8 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 			return
 		}
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
-		recentInvestmentCount := db.GetRecentInvestment(symbol, c.Period, "SHORT")
-		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], "SHORT")
+		recentInvestmentCount := db.GetRecentInvestment(symbol, c.Period, m.ModeName)
+		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], m.ModeName)
 		// checkTotalInvestment := db.CheckTotalInvestment(c, "SHORT")
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
 
@@ -100,7 +101,7 @@ func (m *ShortMode) CreateSellSide(client *futures.Client, c *config.Config, sym
 	// 插入卖单
 	ret := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
-		db.ClearHistory(symbol, "SHORT")
+		db.ClearHistory(symbol, m.ModeName)
 	}
 }
 
@@ -122,7 +123,7 @@ func (m *ShortMode) CreateBuySide(client *futures.Client, c *config.Config, symb
 			_price, _ := decimal.NewFromString(values[2])
 			// quantity := _amount.Div(_price).InexactFloat64()
 			// quantity = quantity * (1 - feeMap[pair])
-			db.InsertInvestment(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), "SHORT")
+			db.InsertInvestment(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), m.ModeName)
 		}
 	}
 }

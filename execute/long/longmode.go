@@ -16,11 +16,12 @@ import (
 )
 
 func init() {
-	t := &LongMode{}
-	interfacer.Register("LONG", t)
+	t := &LongMode{ModeName: "LONG"}
+	interfacer.Register(t.ModeName, t)
 }
 
 type LongMode struct {
+	ModeName string
 }
 
 func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64, volumes []float64) {
@@ -43,9 +44,9 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 	ema6 := talib.Ema(closingPrices, 5)
 	ema26 := talib.Ema(closingPrices, 20)
 
-	investCount := db.GetInvestmentCount(symbol, "LONG")
-	sumInvestment := db.GetSumInvestment(symbol, "LONG")
-	balance := db.GetSumInvestmentQuantity(symbol, "LONG")
+	investCount := db.GetInvestmentCount(symbol, m.ModeName)
+	sumInvestment := db.GetSumInvestment(symbol, m.ModeName)
+	balance := db.GetSumInvestmentQuantity(symbol, m.ModeName)
 	rate := float64(investCount)/3/100.0 + 1
 	atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate)
@@ -58,8 +59,8 @@ func (m *LongMode) Handle(client *futures.Client, c *config.Config, symbol strin
 			return
 		}
 		// if hits[len(hits)-2] <= 0 && hits[len(hits)-1] > 0 {
-		recentInvestmentCount := db.GetRecentInvestment(symbol, c.Period, "LONG")
-		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], "LONG")
+		recentInvestmentCount := db.GetRecentInvestment(symbol, c.Period, m.ModeName)
+		lowThanInvestmentAvgPrice := db.InvestmentAvgPrice(symbol, lastPrice, atr[0], m.ModeName)
 		// checkTotalInvestment := db.CheckTotalInvestment(c, "LONG")
 		//条件 总持仓不能超过10支，一支不能买超过6次 ，最近5根k线不能多次交易，本次进场价要低于上次进场价
 
@@ -104,7 +105,7 @@ func (m *LongMode) CreateSellSide(client *futures.Client, c *config.Config, symb
 	// 插入卖单
 	ret := m.createMarketOrder(client, symbol, strconv.FormatFloat(quantity, 'f', -1, 64), "CLOSE")
 	if ret != nil {
-		db.ClearHistory(symbol, "LONG")
+		db.ClearHistory(symbol, m.ModeName)
 	}
 }
 
@@ -127,7 +128,7 @@ func (m *LongMode) CreateBuySide(client *futures.Client, c *config.Config, symbo
 			_price, _ := decimal.NewFromString(values[2])
 			// quantity := _amount.Div(_price).InexactFloat64()
 			// quantity = quantity * (1 - feeMap[pair])
-			db.InsertInvestment(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), "LONG")
+			db.InsertInvestment(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), m.ModeName)
 		}
 	}
 }
