@@ -59,10 +59,10 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 	balance := db.GetSumInvestmentQuantity(symbol, m.ModeName)
 	// atrRate := atr[0] / lastPrice
 	if (lastPrice >= maxInLast20 && lastPrice < maxInLast99) && !db.GetOrderCache(symbol) {
-		fmt.Println(symbol, m.ModeName, lastPrice, maxInLast20, maxInLast99, minInLast6)
-		fmt.Println(symbol, "volume", volumes[length-1], avgVolume)
-		volumeLargeThenAvg := volumes[length-1] > avgVolume*2.5
-		if investCount == 0 && volumeLargeThenAvg {
+		fmt.Println("prepare", symbol, m.ModeName, lastPrice, "maxInLast20", maxInLast20, "maxInLast99", maxInLast99, "minInLast6", minInLast6, "volume", volumes[length-1], "avgVolume", avgVolume)
+		// volumeLargeThenAvg := volumes[length-1] > avgVolume*2.5
+		//&& volumeLargeThenAvg
+		if investCount == 0 {
 			//检查上一轮是不是在正常范围内
 			// if !m.CheckInRange(symbol, lastPrice, maxInLast99) {
 			// 	fmt.Println(symbol, "FASTLONG 价格太高了，不进了")
@@ -148,7 +148,7 @@ func (m *FastLongMode) createMarketOrder(client *futures.Client, pair string, qu
 	// 开空
 	if side == "OPEN" {
 		sideType = futures.SideTypeBuy
-		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeLong).
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(m.ModeName, 12)).PositionSide(futures.PositionSideTypeLong).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	} else {
 		// 平空
@@ -156,7 +156,7 @@ func (m *FastLongMode) createMarketOrder(client *futures.Client, pair string, qu
 		quantityF, _ := decimal.NewFromString(quantity)
 		step := decimal.NewFromFloat(config.LotSizeMap[pair])
 		quantity = strconv.FormatFloat(utils.RoundStepSize(quantityF.InexactFloat64(), step.InexactFloat64()), 'f', -1, 64)
-		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeLong).
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(m.ModeName, 12)).PositionSide(futures.PositionSideTypeLong).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	}
 	if err != nil {

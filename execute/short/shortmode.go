@@ -134,7 +134,7 @@ func (m *ShortMode) createMarketOrder(client *futures.Client, pair string, quant
 	// 开空
 	if side == "OPEN" {
 		sideType = futures.SideTypeSell
-		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeShort).
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(m.ModeName, 12)).PositionSide(futures.PositionSideTypeShort).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	} else {
 		// 平空
@@ -142,7 +142,7 @@ func (m *ShortMode) createMarketOrder(client *futures.Client, pair string, quant
 		quantityF, _ := decimal.NewFromString(quantity)
 		step := decimal.NewFromFloat(config.LotSizeMap[pair])
 		quantity = strconv.FormatFloat(utils.RoundStepSize(quantityF.InexactFloat64(), step.InexactFloat64()), 'f', -1, 64)
-		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeShort).
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(m.ModeName, 12)).PositionSide(futures.PositionSideTypeShort).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	}
 	if err != nil {

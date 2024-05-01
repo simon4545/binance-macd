@@ -95,11 +95,14 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 			mode = "LONG"
 		}
 		investment := db.GetSumInvestment(message.Symbol, mode)
+		investment = investment + db.GetSumInvestment(message.Symbol, "FAST"+mode)
 		if message.PositionSide == futures.PositionSideTypeShort && message.Side == futures.SideTypeBuy {
-			db.ClearHistory(message.Symbol, string(message.PositionSide))
+			db.ClearHistory(message.Symbol, "SHORT")
+			db.ClearHistory(message.Symbol, "FASTSHORT")
 		}
 		if message.PositionSide == futures.PositionSideTypeLong && message.Side == futures.SideTypeSell {
-			db.ClearHistory(message.Symbol, string(message.PositionSide))
+			db.ClearHistory(message.Symbol, "LONG")
+			db.ClearHistory(message.Symbol, "FASTLONG")
 		}
 		// }
 		if message.Type == "LIQUIDATION" && conf.ForceInput {

@@ -89,12 +89,12 @@ func Crossdown(a, b []float64) bool {
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-func RandStr(length int) string {
+func RandStr(prefix string, length int) string {
 	b := make([]rune, length)
 	for i := range b {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
-	str := fmt.Sprintf("SIM-%s", string(b))
+	str := fmt.Sprintf("SIM-%s-%s", prefix, string(b))
 	return str
 }
 

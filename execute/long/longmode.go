@@ -138,14 +138,14 @@ func (m *LongMode) createMarketOrder(client *futures.Client, pair string, quanti
 	var err error
 	if side == "OPEN" {
 		sideType = futures.SideTypeBuy
-		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeLong).
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(m.ModeName, 12)).PositionSide(futures.PositionSideTypeLong).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	} else {
 		sideType = futures.SideTypeSell
 		quantityF, _ := decimal.NewFromString(quantity)
 		step := decimal.NewFromFloat(config.LotSizeMap[pair])
 		quantity = strconv.FormatFloat(utils.RoundStepSize(quantityF.InexactFloat64(), step.InexactFloat64()), 'f', -1, 64)
-		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(12)).PositionSide(futures.PositionSideTypeLong).
+		order, err = client.NewCreateOrderService().Symbol(pair).NewClientOrderID(utils.RandStr(m.ModeName, 12)).PositionSide(futures.PositionSideTypeLong).
 			Side(sideType).Type(futures.OrderTypeMarket).Quantity(quantity).Do(context.Background(), futures.WithRecvWindow(10000))
 	}
 	if err != nil {
