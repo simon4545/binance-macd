@@ -79,7 +79,7 @@ func (m *ShortMode) Handle(client *futures.Client, c *config.Config, symbol stri
 				recentInvestmentCount,
 				lowThanInvestmentAvgPrice,
 			))
-			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice)
+			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice, lastPrice)
 		}
 	}
 	if investCount > 0 && balance > config.LotSizeMap[symbol] {
@@ -104,7 +104,7 @@ func (m *ShortMode) CreateSellSide(client *futures.Client, c *config.Config, sym
 	}
 }
 
-func (m *ShortMode) CreateBuySide(client *futures.Client, c *config.Config, symbol string, amount, lastPrice float64) {
+func (m *ShortMode) CreateBuySide(client *futures.Client, c *config.Config, symbol string, amount, lastPrice, sl float64) {
 	// 插入买单
 	fmt.Println("CreateBuySide", symbol, amount, lastPrice)
 	damount := decimal.NewFromFloat(amount)

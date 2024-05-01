@@ -47,16 +47,17 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 	}
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
 	length := len(closingPrices)
-	// minInLast20 := slices.Min(closingPrices[length-99 : length-1])
+	minInLast20 := slices.Min(closingPrices[length-99 : length-1])
 	minInLast5 := slices.Min(closingPrices[length-6 : length-1])
 	avgVolume := avg(volumes[length-6 : length-1])
 	maxInLast3 := slices.Max(closingPrices[length-4 : length-1])
 	investCount := db.GetInvestmentCount(symbol, "FASTSHORT")
+	lastInvest := db.InvestmentAvgPrice1(symbol, "FASTSHORT")
 	sumInvestment := db.GetSumInvestment(symbol, "FASTSHORT")
 	balance := db.GetSumInvestmentQuantity(symbol, "FASTSHORT")
-	atrRate := atr[0] / lastPrice
+	// atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate, avgVolume)
-	if lastPrice <= minInLast5 {
+	if lastPrice <= minInLast5 && lastPrice > minInLast20 && !db.GetOrderCache(symbol) {
 		// if lastPrice <= atr[2]*1.05 {
 		// 	fmt.Println(symbol, "FASTSHORT 价格太低了，不空了")
 		// 	return
@@ -69,21 +70,25 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 				fmt.Println(symbol, "余额不足", balance)
 				return
 			}
+			sl := maxInLast3
 			//插入买单
-			db.MakeLog(symbol, fmt.Sprintf("FASTSHORT 当前时间 %s 出现急速下跌 价格:%f ",
+			db.MakeLog(symbol, fmt.Sprintf("FASTSHORT %s 急速下跌 价格:%f 止损 %f 止盈 %f",
 				time.Now().Format("2006-01-02 15:04:05"),
-				lastPrice,
+				lastPrice, sl, sl-(sl-lastPrice)*1.5,
 			))
-			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice)
+
+			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice, sl)
 		}
 	}
 	if investCount > 0 && balance > config.LotSizeMap[symbol] {
-		_atrRate := atrRate * 3.1
-		cond1 := (balance * lastPrice) <= sumInvestment*(1-_atrRate)
+		// _atrRate := atrRate * 3.1
+		// cond1 := (balance * lastPrice) <= sumInvestment*(1-_atrRate)
+		cond1 := lastPrice < lastInvest.TakeProfit
 		cond2 := lastPrice >= maxInLast3
+
 		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
-			db.MakeLog(symbol, fmt.Sprintf("FASTSHORT 出现回升 %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, sumInvestment, investCount, cond1, cond2))
+			db.MakeLog(symbol, fmt.Sprintf("FASTSHORT 出场 %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, sumInvestment, investCount, cond1, cond2))
 			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
@@ -99,7 +104,7 @@ func (m *FastShortMode) CreateSellSide(client *futures.Client, c *config.Config,
 	}
 }
 
-func (m *FastShortMode) CreateBuySide(client *futures.Client, c *config.Config, symbol string, amount, lastPrice float64) {
+func (m *FastShortMode) CreateBuySide(client *futures.Client, c *config.Config, symbol string, amount, lastPrice, sl float64) {
 	// 插入买单
 	fmt.Println("CreateBuySide", symbol, amount, lastPrice)
 	damount := decimal.NewFromFloat(amount)
@@ -117,7 +122,8 @@ func (m *FastShortMode) CreateBuySide(client *futures.Client, c *config.Config, 
 			_price, _ := decimal.NewFromString(values[2])
 			// quantity := _amount.Div(_price).InexactFloat64()
 			// quantity = quantity * (1 - feeMap[pair])
-			db.InsertInvestment(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), "FASTSHORT")
+			tp := sl - (sl-lastPrice)*1.5
+			db.Insert(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), tp, sl, "FASTSHORT")
 		}
 	}
 }

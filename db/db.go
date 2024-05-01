@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	lediscfg "github.com/ledisdb/ledisdb/config"
+	"github.com/ledisdb/ledisdb/ledis"
 	"github.com/simon4545/binance-macd/config"
 	"github.com/simon4545/binance-macd/utils"
 	"gorm.io/driver/sqlite"
@@ -13,15 +15,18 @@ import (
 )
 
 var db *gorm.DB
+var ldb *ledis.DB
 
 type Investment struct {
-	ID        uint `gorm:"primaryKey"`
-	CreatedAt time.Time
-	Currency  string
-	Operate   string
-	Amount    float64
-	Quantity  float64
-	UnitPrice float64
+	ID         uint `gorm:"primaryKey"`
+	CreatedAt  time.Time
+	Currency   string
+	Operate    string
+	Amount     float64
+	Quantity   float64
+	UnitPrice  float64
+	StopLoss   float64
+	TakeProfit float64
 }
 type Log struct {
 	ID        uint `gorm:"primaryKey"`
@@ -50,8 +55,22 @@ func InitDB() {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
 
+	cfg := lediscfg.NewConfigDefault()
+	l, _ := ledis.Open(cfg)
+	ldb, _ = l.Select(0)
+}
+func SetOrderCache(symbol string) {
+	ldb.SetEX([]byte(symbol), 60*5, []byte("YES"))
+}
+func GetOrderCache(symbol string) (found bool) {
+	val, err := ldb.Get([]byte(symbol))
+	if err != nil || val == nil {
+		return
+	}
+	found = true
+	return
+}
 func GetInvestmentCount(currency string, mode string) int64 {
 	var count int64
 	result := db.Model(&Investment{}).Where("currency = ? and operate= ?", currency, mode).Count(&count)
@@ -60,7 +79,14 @@ func GetInvestmentCount(currency string, mode string) int64 {
 	}
 	return count
 }
+func InvestmentAvgPrice1(currency string, mode string) (dbResult Investment) {
+	result := db.Model(&Investment{}).Where("currency = ? and operate= ? ", currency, mode).Order("id DESC").Limit(1).Find(&dbResult)
+	if result.Error != nil {
+		log.Fatal(result.Error)
+	}
 
+	return
+}
 func InvestmentAvgPrice(currency string, price, rate float64, mode string) bool {
 	dbResult := &Result{}
 	result := db.Model(&Investment{}).Select("unit_price as Total").Where("currency = ? and operate= ? ", currency, mode).Order("id DESC").Limit(1).Scan(dbResult)
@@ -136,6 +162,21 @@ func GetSumInvestmentQuantity(currency string, mode string) float64 {
 		log.Fatal(result.Error)
 	}
 	return dbResult.Total
+}
+func Insert(currency string, amount float64, quantity, price, tp, sl float64, side string) {
+	investment := Investment{
+		Operate:    side,
+		Currency:   currency,
+		Amount:     amount,
+		Quantity:   quantity,
+		UnitPrice:  price,
+		TakeProfit: tp,
+		StopLoss:   sl,
+	}
+	result := db.Create(&investment)
+	if result.Error != nil {
+		log.Fatal(result.Error)
+	}
 }
 func InsertInvestment(currency string, amount float64, quantity, price float64, side string) {
 	investment := Investment{

@@ -108,7 +108,7 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 				// 补仓
 				time.Sleep(time.Second * 3)
 				excutor := interfacer.Create(string(message.PositionSide), client)
-				excutor.CreateBuySide(client, conf, message.Symbol, investment, price)
+				excutor.CreateBuySide(client, conf, message.Symbol, investment, price, price)
 			}
 		}
 	}
