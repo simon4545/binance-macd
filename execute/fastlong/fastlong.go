@@ -35,7 +35,7 @@ func avg(list []float64) float64 {
 func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol string, lastPrice float64, closingPrices, highPrices, lowPrices []float64, volumes []float64) {
 	config.OrderLocker.Lock()
 	defer config.OrderLocker.Unlock()
-	if len(closingPrices) < 100 {
+	if len(closingPrices) < 99 {
 		return
 	}
 	atr, exists := config.AtrMap.Get(symbol)
@@ -49,21 +49,22 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 	}
 	// _, _, hits := talib.Macd(closingPrices, 12, 26, 9)
 	length := len(closingPrices)
-	maxInLast20 := slices.Max(closingPrices[length-99 : length-1])
-	maxInLast5 := slices.Max(closingPrices[length-6 : length-1])
-	minInLast3 := slices.Min(closingPrices[length-4 : length-1])
-	avgVolume := avg(volumes[length-6 : length-1])
+	maxInLast99 := slices.Max(closingPrices[length-99 : length-1])
+	maxInLast20 := slices.Max(closingPrices[length-21 : length-1])
+	minInLast6 := slices.Min(closingPrices[length-7 : length-1])
+	avgVolume := avg(volumes[length-7 : length-1])
 	investCount := db.GetInvestmentCount(symbol, m.ModeName)
 	lastInvest := db.InvestmentAvgPrice1(symbol, m.ModeName)
 	sumInvestment := db.GetSumInvestment(symbol, m.ModeName)
 	balance := db.GetSumInvestmentQuantity(symbol, m.ModeName)
 	// atrRate := atr[0] / lastPrice
 	// fmt.Println(symbol, atr, atrRate, avgVolume)
-	if lastPrice >= maxInLast5 && lastPrice < maxInLast20 && !db.GetOrderCache(symbol) {
-		// if lastPrice >= atr[1]*0.95 {
-		// 	fmt.Println(symbol, "FASTLONG 价格太高了，不进了")
-		// 	return
-		// }
+	if (lastPrice >= maxInLast20 && lastPrice < maxInLast99) && !db.GetOrderCache(symbol) {
+		//检查上一轮是不是在正常范围内
+		if !m.CheckInRange(symbol) {
+			fmt.Println(symbol, "FASTLONG 价格太高了，不进了")
+			return
+		}
 		fmt.Println(symbol, volumes[length-1], avgVolume)
 		volumeLargeThenAvg := volumes[length-1] > avgVolume*2.5
 		if investCount == 0 && volumeLargeThenAvg {
@@ -72,11 +73,11 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 				fmt.Println(symbol, "余额不足", balance)
 				return
 			}
-			sl := minInLast3
+			sl := minInLast6
 			//插入买单
 			db.MakeLog(symbol, fmt.Sprintf("FASTLONG %s 急速上涨 价格:%f 止损%f 止盈%f",
 				time.Now().Format("2006-01-02 15:04:05"),
-				lastPrice, sl, sl+(lastPrice-sl)*1.5,
+				lastPrice, sl, lastPrice+math.Abs(lastPrice-sl)*1.5,
 			))
 			m.CreateBuySide(client, c, symbol, c.Symbols[symbol].Amount, lastPrice, sl)
 		}
@@ -85,15 +86,27 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 		// _atrRate := atrRate * 3.1
 		// cond1 := (balance * lastPrice) <= sumInvestment*(1-_atrRate)
 		cond1 := lastPrice > lastInvest.TakeProfit
-		cond2 := lastPrice <= minInLast3
+		cond2 := lastPrice <= minInLast6
 		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			db.MakeLog(symbol, fmt.Sprintf("FASTLONG 出场 %f %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, lastInvest.TakeProfit, sumInvestment, investCount, cond1, cond2))
 			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
+	m.SetInRange(symbol, lastPrice, maxInLast20, minInLast6)
 }
-
+func (m *FastLongMode) CheckInRange(symbol string) bool {
+	//上一轮在范围中
+	lastResult := db.GetInRange(symbol, m.ModeName)
+	return lastResult
+}
+func (m *FastLongMode) SetInRange(symbol string, lastprice, upper, lower float64) {
+	if lastprice > lower && lastprice < upper {
+		db.SetInRange(symbol, m.ModeName, true)
+		return
+	}
+	db.SetInRange(symbol, m.ModeName, false)
+}
 func (m *FastLongMode) CreateSellSide(client *futures.Client, c *config.Config, symbol string, balance float64) {
 	quantity := utils.RoundStepSize(balance, config.LotSizeMap[symbol])
 	fmt.Println(symbol, "quantity", quantity)
@@ -122,7 +135,8 @@ func (m *FastLongMode) CreateBuySide(client *futures.Client, c *config.Config, s
 			_price, _ := decimal.NewFromString(values[2])
 			// quantity := _amount.Div(_price).InexactFloat64()
 			// quantity = quantity * (1 - feeMap[pair])
-			tp := sl + math.Abs(lastPrice-sl)*1.5
+			_priceF := _price.InexactFloat64()
+			tp := _priceF + math.Abs(_priceF-sl)*1.5
 			db.Insert(symbol, _amount.InexactFloat64(), quantity, _price.InexactFloat64(), tp, sl, m.ModeName)
 		}
 	}

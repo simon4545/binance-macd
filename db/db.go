@@ -60,8 +60,26 @@ func InitDB() {
 	l, _ := ledis.Open(cfg)
 	ldb, _ = l.Select(0)
 }
+func SetInRange(symbol, mode string, inrange bool) {
+	if inrange {
+		ldb.SetEX([]byte(symbol+mode), 20, []byte{1})
+	} else {
+		ldb.SetEX([]byte(symbol+mode), 20, []byte{0})
+	}
+}
+func GetInRange(symbol, mode string) (inrange bool) {
+	val, err := ldb.Get([]byte(symbol + mode))
+	if err != nil || val == nil {
+		return
+	}
+	in := val[0]
+	if in == 1 {
+		inrange = true
+	}
+	return
+}
 func SetOrderCache(symbol string) {
-	ldb.SetEX([]byte(symbol), 60*5, []byte("YES"))
+	ldb.SetEX([]byte(symbol), 60*10, []byte("YES"))
 }
 func GetOrderCache(symbol string) (found bool) {
 	val, err := ldb.Get([]byte(symbol))
