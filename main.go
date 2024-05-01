@@ -121,7 +121,7 @@ func checkCross(client *futures.Client, symbol string) {
 	for _, v := range sides {
 		excutor := interfacer.Create(v, client)
 		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices, volumes)
-		time.Sleep(time.Millisecond * 500)
+		time.Sleep(time.Millisecond * 200)
 	}
 }
 

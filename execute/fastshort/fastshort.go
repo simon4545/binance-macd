@@ -58,16 +58,17 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 	sumInvestment := db.GetSumInvestment(symbol, m.ModeName)
 	balance := db.GetSumInvestmentQuantity(symbol, m.ModeName)
 	// atrRate := atr[0] / lastPrice
-	// fmt.Println(symbol, atr, atrRate, avgVolume)
+
 	if lastPrice <= minInLast20 && lastPrice > minInLast99 && !db.GetOrderCache(symbol) {
-		//检查上一轮是不是在正常范围内
-		if !m.CheckInRange(symbol) {
-			fmt.Println(symbol, "FASTLONG 价格太高了，不进了")
-			return
-		}
-		fmt.Println(symbol, volumes[length-1], avgVolume)
+		fmt.Println(symbol, m.ModeName, lastPrice, minInLast20, minInLast99, maxInLast6)
+		fmt.Println(symbol, "volume", volumes[length-1], avgVolume)
 		volumeLargeThenAvg := volumes[length-1] > avgVolume*2.5
 		if investCount == 0 && volumeLargeThenAvg {
+			//检查上一轮是不是在正常范围内
+			// if !m.CheckInRange(symbol, lastPrice, minInLast99) {
+			// 	fmt.Println(symbol, "FASTSHORT 价格太低了，不进了")
+			// 	return
+			// }
 			balance := utils.GetBalance(client, "USDT")
 			if balance*10 < c.Symbols[symbol].Amount {
 				fmt.Println(symbol, "余额不足", balance)
@@ -95,13 +96,13 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 			m.CreateSellSide(client, c, symbol, balance)
 		}
 	}
-	m.SetInRange(symbol, lastPrice, maxInLast6, minInLast20)
+	// m.SetInRange(symbol, lastPrice, maxInLast6, minInLast20)
 }
 
-func (m *FastShortMode) CheckInRange(symbol string) bool {
+func (m *FastShortMode) CheckInRange(symbol string, lastPrice, minValue float64) bool {
 	//上一轮在范围中
-	lastResult := db.GetInRange(symbol, m.ModeName)
-	return lastResult
+	// lastResult := db.GetInRange(symbol, m.ModeName)
+	return lastPrice > minValue
 }
 func (m *FastShortMode) SetInRange(symbol string, lastprice, upper, lower float64) {
 	if lastprice > lower && lastprice < upper {
