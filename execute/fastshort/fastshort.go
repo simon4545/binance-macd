@@ -88,7 +88,7 @@ func (m *FastShortMode) Handle(client *futures.Client, c *config.Config, symbol 
 		// _atrRate := atrRate * 3.1
 		// cond1 := (balance * lastPrice) <= sumInvestment*(1-_atrRate)
 		cond1 := lastPrice < lastInvest.TakeProfit
-		cond2 := lastPrice >= maxInLast6
+		cond2 := lastPrice >= lastInvest.StopLoss
 
 		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {

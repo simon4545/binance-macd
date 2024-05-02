@@ -87,8 +87,8 @@ func avg(list []float64) float64 {
 }
 func checkCross(client *futures.Client, symbol string) {
 	// defer time.Sleep(4 * time.Second)
-	klines, err := client.NewKlinesService().Symbol(symbol).Interval(conf.Period).Limit(100).Do(context.Background())
-	if err != nil {
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval(conf.Period).Limit(120).Do(context.Background())
+	if err != nil || len(klines) < 100 {
 		print(err)
 		return
 	}
@@ -106,6 +106,7 @@ func checkCross(client *futures.Client, symbol string) {
 		lowPrices = append(lowPrices, low)
 		volumes = append(volumes, volume)
 	}
+	ema90 := talib.Ema(closingPrices, 99)
 	lastPrice, _ := strconv.ParseFloat(klines[len(klines)-1].Close, 64)
 	atr, exists := config.AtrMap.Get(symbol)
 	if !exists {
@@ -119,8 +120,10 @@ func checkCross(client *futures.Client, symbol string) {
 	}
 	sides := strings.Split(side, "|")
 	for _, v := range sides {
-		excutor := interfacer.Create(v, client)
-		excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices, volumes)
+		if (lastPrice < ema90[len(ema90)-1] && strings.HasSuffix(v, "LONG")) || (lastPrice > ema90[len(ema90)-1] && strings.HasSuffix(v, "SHORT")) {
+			excutor := interfacer.Create(v, client)
+			excutor.Handle(client, conf, symbol, lastPrice, closingPrices, highPrices, lowPrices, volumes)
+		}
 		time.Sleep(time.Millisecond * 200)
 	}
 }

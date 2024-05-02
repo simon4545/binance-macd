@@ -86,7 +86,7 @@ func (m *FastLongMode) Handle(client *futures.Client, c *config.Config, symbol s
 		// _atrRate := atrRate * 3.1
 		// cond1 := (balance * lastPrice) <= sumInvestment*(1-_atrRate)
 		cond1 := lastPrice > lastInvest.TakeProfit
-		cond2 := lastPrice <= minInLast6
+		cond2 := lastPrice <= lastInvest.StopLoss
 		if cond1 || cond2 {
 			// if hits[len(hits)-2] > 0 && hits[len(hits)-1] <= 0 {
 			db.MakeLog(symbol, fmt.Sprintf("FASTLONG 出场 %f %f GetSumInvestment %f GetInvestmentCount %d cond1:%t cond2:%t", lastPrice, lastInvest.TakeProfit, sumInvestment, investCount, cond1, cond2))

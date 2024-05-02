@@ -79,7 +79,7 @@ func GetInRange(symbol, mode string) (inrange bool) {
 	return
 }
 func SetOrderCache(symbol string) {
-	ldb.SetEX([]byte(symbol), 60*0, []byte("YES"))
+	ldb.SetEX([]byte(symbol), 60*60, []byte("YES"))
 }
 func GetOrderCache(symbol string) (found bool) {
 	val, err := ldb.Get([]byte(symbol))
