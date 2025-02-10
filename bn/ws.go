@@ -20,7 +20,7 @@ type KLine struct {
 }
 
 func getListKlines(pair string) {
-	klines, err := client.NewKlinesService().Symbol(pair).Interval(c.Period).Limit(100).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(pair).Interval(c.Symbols[pair].Period).Limit(100).Do(context.Background())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -107,8 +107,8 @@ func wsKlineHandler(event *binance.WsKlineEvent) {
 // websocket K线
 func WsKline() {
 	symbolsWithInterval := make(map[string]string)
-	for _, symbol := range c.Symbols {
-		symbolsWithInterval[symbol] = c.Period
+	for k, symbol := range c.Symbols {
+		symbolsWithInterval[k] = symbol.Period
 	}
 	for {
 		var err error

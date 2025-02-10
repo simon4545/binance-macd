@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -14,17 +15,18 @@ var PriceFilterMap map[string]float64
 var FeeMap map[string]float64
 var AtrMap map[string]float64
 
+type SymbolConfig struct {
+	Amount       float64 `yaml:"AMOUNT"`
+	Multi        float64 `yaml:"MULTI"`
+	Period       string  `yaml:"PERIOD"`
+	Level        int     `yaml:"LEVEL"`
+	PriceProtect float64 `yaml:"PRICEPROTECT"`
+	ForceSell    float64 `yaml:"FORCESELL"`
+}
 type Config struct {
-	BAPI_KEY     string   `yaml:"BAPI_KEY"`
-	BAPI_SCRET   string   `yaml:"BAPI_SCRET"`
-	Symbols      []string `yaml:"SYMBOLS"`
-	Amount       float64  `yaml:"AMOUNT"`
-	Multi        float64  `yaml:"MULTI"`
-	Exclude      []string `yaml:"EXCLUDE"`
-	Period       string   `yaml:"PERIOD"`
-	Level        int      `yaml:"LEVEL"`
-	PriceProtect float64  `yaml:"PRICEPROTECT"`
-	ForceSell    float64  `yaml:"FORCESELL"`
+	BAPI_KEY   string                   `yaml:"BAPI_KEY"`
+	BAPI_SCRET string                   `yaml:"BAPI_SCRET"`
+	Symbols    map[string]*SymbolConfig `yaml:"SYMBOLMAP"`
 }
 
 func (c *Config) Read() {
@@ -36,18 +38,27 @@ func (c *Config) Read() {
 	if err != nil {
 		log.Fatalf("Unmarshal: %v", err)
 	}
-	if c.Level == 0 {
-		c.Level = 20
+	for _, v := range c.Symbols {
+		if v.Amount == 0.0 {
+			v.Amount = 100
+		}
+		if v.Multi == 0.0 {
+			v.Multi = 0.1
+		}
+		if v.Level == 0 {
+			v.Level = 20
+		}
+		if v.Period == "" {
+			v.Period = "5m"
+		}
+		if v.PriceProtect == 0.0 {
+			v.PriceProtect = 0.015
+		}
+		if v.ForceSell == 0.0 {
+			v.ForceSell = 0.1
+		}
 	}
-	if c.Period == "" {
-		c.Period = "4h"
-	}
-	if c.PriceProtect == 0.0 {
-		c.PriceProtect = 0.015
-	}
-	if c.ForceSell == 0.0 {
-		c.ForceSell = 0.1
-	}
+	fmt.Println(c)
 }
 func (c *Config) Init() {
 	c.Read()

@@ -25,8 +25,8 @@ func InitWS() {
 }
 
 func InitPriceData(client *binance.Client) {
-	for _, symbol := range c.Symbols {
-		getListKlines(symbol)
+	for k, _ := range c.Symbols {
+		getListKlines(k)
 	}
 }
 func getUserStream(client *binance.Client) string {

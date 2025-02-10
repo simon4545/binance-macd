@@ -29,9 +29,9 @@ func Init(config *configuration.Config) {
 	go func() {
 		for t := range ticker.C {
 			fmt.Println("定时任务执行，当前时间：", t)
-			for _, sym := range c.Symbols {
-				assetInfo := AssetInfo[sym]
-				Handle(sym, assetInfo.Price, assetInfo.Close, assetInfo.High, assetInfo.Low)
+			for k, _ := range c.Symbols {
+				assetInfo := AssetInfo[k]
+				Handle(k, assetInfo.Price, assetInfo.Close, assetInfo.High, assetInfo.Low)
 			}
 		}
 	}()
@@ -48,6 +48,7 @@ func Handle(pair string, lastPrice float64, closingPrices, highPrices, lowPrices
 		fmt.Println("没有拿到精度")
 		return
 	}
+	symbolConfig := c.Symbols[pair]
 	symbol, _ := functions.SplitSymbol(pair)
 
 	fastSignal, slowSignal, _ := talib.Macd(closingPrices, 12, 26, 9)
@@ -59,7 +60,7 @@ func Handle(pair string, lastPrice float64, closingPrices, highPrices, lowPrices
 	balance := getSumInvestmentQuantity(invests)
 	invest := recentInvestment(invests)
 
-	level := c.Level
+	level := symbolConfig.Level
 	takeprofit := balance*lastPrice - sumInvestment
 	fmt.Println("浮动盈亏", pair, functions.RoundStepSize(takeprofit, 0.1))
 	// 条件
@@ -67,20 +68,20 @@ func Handle(pair string, lastPrice float64, closingPrices, highPrices, lowPrices
 	// 一支不能买超过6次
 	// 最近5根k线不能多次交易
 	// 本次进场价要低于上次进场价
-	if len(invests) == 0 || (len(invests) > 0 && lastPrice < invest.UnitPrice*(1-c.ForceSell)) {
+	if len(invests) == 0 || (len(invests) > 0 && lastPrice < invest.UnitPrice*(1-symbolConfig.ForceSell)) {
 		fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "进入强制买入条件")
 		createOrder(c, investCount, pair)
 	}
 
 	if functions.Crossover(fastSignal, slowSignal) {
-		recentInvestment := recentInvestmentPrice(invests, c.Period)
+		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period)
 
 		fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice,
 			"投资数", investCount,
 			"最近持仓平均价", recentInvestment)
 
 		if investCount < level && recentInvestment == -1 {
-			if invest != nil && lastPrice > invest.UnitPrice*(1-c.PriceProtect) {
+			if invest != nil && lastPrice > invest.UnitPrice*(1-symbolConfig.PriceProtect) {
 				fmt.Println(pair, "价格过于接近，不建仓")
 				return
 			}
@@ -90,7 +91,7 @@ func Handle(pair string, lastPrice float64, closingPrices, highPrices, lowPrices
 
 	if investCount > 0 && balance > configuration.LotSizeMap[pair] {
 		// 如果当前价格高于所有仓位的平均价的1.15倍
-		if investCount > 2 && (balance*lastPrice) >= sumInvestment*(1+c.ForceSell) {
+		if investCount > 2 && (balance*lastPrice) >= sumInvestment*(1+symbolConfig.ForceSell) {
 			fmt.Println(pair, "出现死叉", balance, lastPrice, "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
 			quantity := functions.RoundStepSize(balance, configuration.LotSizeMap[pair])
 			fmt.Println(pair, "quantity", quantity)
@@ -111,7 +112,7 @@ func Handle(pair string, lastPrice float64, closingPrices, highPrices, lowPrices
 			//如果出现死叉
 			//如果现价比建仓价高20%
 			if (functions.Crossdown(fastSignal, slowSignal) && quantity*lastPrice > v.Amount*1.01) ||
-				(quantity*lastPrice > v.Amount*(1+c.ForceSell)) {
+				(quantity*lastPrice > v.Amount*(1+symbolConfig.ForceSell)) {
 				fmt.Println(pair, "出现死叉", balance, lastPrice, "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
 				// 插入卖单
 				amount := createSOrder(strconv.FormatFloat(quantity, 'f', -1, 64), pair)
@@ -144,16 +145,17 @@ func createSOrder(quantity string, pair string) (amount float64) {
 
 func createOrder(c *configuration.Config, investCount int, pair string) {
 	_, quote := functions.SplitSymbol(pair)
+	symbolConfig := c.Symbols[pair]
 	balance := GetBalance(client, quote)
-	if balance < c.Amount {
+	if balance < symbolConfig.Amount {
 		fmt.Println(pair, "余额不足")
 		return
 	}
 	//插入买单
 	orderFilledChan := make(chan []string)
-	needToBuy := c.Amount
+	needToBuy := symbolConfig.Amount
 	if investCount > 0 {
-		needToBuy = functions.RoundStepSize(needToBuy*(1+c.Multi*float64(investCount)), configuration.LotSizeMap[pair])
+		needToBuy = functions.RoundStepSize(needToBuy*(1+symbolConfig.Multi*float64(investCount)), configuration.LotSizeMap[pair])
 	}
 	order := createMarketOrder(client, pair, strconv.FormatFloat(needToBuy, 'f', -1, 64), "BUY")
 	if order != nil {

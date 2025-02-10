@@ -1,18 +1,12 @@
 package main
 
 import (
-	"io"
-	"log"
-	"net/http"
 	"os"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/simon4545/binance-macd/bn"
 	"github.com/simon4545/binance-macd/configuration"
 	"github.com/simon4545/binance-macd/db"
-	"github.com/tidwall/gjson"
 )
 
 var symbols []string
@@ -44,39 +38,39 @@ func main() {
 	select {}
 }
 
-func list() {
-	url := "https://api.binance.com/api/v3/ticker/24hr"
-	// url := "https://api.binance.com/api/v3/ticker/24hr"
-	response, err := http.Get(url)
-	if err != nil {
-		log.Println("Error making GET request:", err)
-		return
-	}
-	defer response.Body.Close()
-	bodyBytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		log.Println("Error reading response body:", err)
-		return
-	}
+// func list() {
+// 	url := "https://api.binance.com/api/v3/ticker/24hr"
+// 	// url := "https://api.binance.com/api/v3/ticker/24hr"
+// 	response, err := http.Get(url)
+// 	if err != nil {
+// 		log.Println("Error making GET request:", err)
+// 		return
+// 	}
+// 	defer response.Body.Close()
+// 	bodyBytes, err := io.ReadAll(response.Body)
+// 	if err != nil {
+// 		log.Println("Error reading response body:", err)
+// 		return
+// 	}
 
-	responseBody := string(bodyBytes)
-	value := gjson.Parse(responseBody).Array()
-	symbols = []string{}
-	for _, symbol := range value {
-		symbolCoin := symbol.Get("symbol").String()
+// 	responseBody := string(bodyBytes)
+// 	value := gjson.Parse(responseBody).Array()
+// 	symbols = []string{}
+// 	for _, symbol := range value {
+// 		symbolCoin := symbol.Get("symbol").String()
 
-		if !strings.HasSuffix(symbolCoin, "USDT") {
-			continue
-		}
-		baseAsset := symbolCoin[:len(symbolCoin)-4]
-		if strings.HasSuffix(baseAsset, "DOWN") || strings.HasSuffix(baseAsset, "UP") {
-			continue
-		}
-		volume24h := symbol.Get("quoteVolume").Float()
+// 		if !strings.HasSuffix(symbolCoin, "USDT") {
+// 			continue
+// 		}
+// 		baseAsset := symbolCoin[:len(symbolCoin)-4]
+// 		if strings.HasSuffix(baseAsset, "DOWN") || strings.HasSuffix(baseAsset, "UP") {
+// 			continue
+// 		}
+// 		volume24h := symbol.Get("quoteVolume").Float()
 
-		if volume24h > 5_000_000 && !slices.Contains(config.Exclude, baseAsset) {
-			symbols = append(symbols, baseAsset)
-		}
+// 		if volume24h > 5_000_000 && !slices.Contains(config.Exclude, baseAsset) {
+// 			symbols = append(symbols, baseAsset)
+// 		}
 
-	}
-}
+// 	}
+// }
