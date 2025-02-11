@@ -55,7 +55,20 @@ func InitDB() {
 		log.Fatal(err)
 	}
 }
-
+func GetAllInvestments() (invests []Investment) {
+	result := db.Order("id desc").Limit(20).Find(&invests)
+	if result.Error != nil {
+		log.Fatal(result.Error)
+	}
+	return
+}
+func GetAllEarns() (earns []Earn) {
+	result := db.Limit(20).Find(&earns)
+	if result.Error != nil {
+		log.Fatal(result.Error)
+	}
+	return
+}
 func GetInvestments(currency string) (invests []Investment) {
 	result := db.Model(&Investment{}).Where("currency = ?", currency).Find(&invests)
 	if result.Error != nil {

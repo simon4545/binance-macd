@@ -35,6 +35,7 @@ func main() {
 	config.Init()
 	db.InitDB()
 	go bn.Init(config)
+	go WebInit()
 	select {}
 }
 

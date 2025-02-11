@@ -3,7 +3,9 @@ package configuration
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -26,7 +28,31 @@ type SymbolConfig struct {
 type Config struct {
 	BAPI_KEY   string                   `yaml:"BAPI_KEY"`
 	BAPI_SCRET string                   `yaml:"BAPI_SCRET"`
+	Port       int                      `yaml:"PORT"`
 	Symbols    map[string]*SymbolConfig `yaml:"SYMBOLMAP"`
+}
+
+func isPortAvailable(port int) bool {
+	// 尝试在指定端口上监听
+	address := ":" + strconv.Itoa(port)
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		// 如果出现错误，表示端口被占用
+		return false
+	}
+	// 关闭监听器
+	defer listener.Close()
+	return true
+}
+
+func findAvailablePort(startPort int) int {
+	port := startPort
+	for {
+		if isPortAvailable(port) {
+			return port
+		}
+		port++
+	}
 }
 
 func (c *Config) Read() {
@@ -37,6 +63,9 @@ func (c *Config) Read() {
 	err = yaml.Unmarshal(yamlFile, c)
 	if err != nil {
 		log.Fatalf("Unmarshal: %v", err)
+	}
+	if c.Port == 0 {
+		c.Port = findAvailablePort(8888)
 	}
 	for _, v := range c.Symbols {
 		if v.Amount == 0.0 {
