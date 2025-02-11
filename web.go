@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"text/template"
+	"time"
 
 	"github.com/simon4545/binance-macd/db"
 )
@@ -24,8 +25,14 @@ func WebInit() {
 			Investments: investments,
 			Earns:       earns,
 		}
+		// 创建模板函数，用于格式化时间
+		funcMap := template.FuncMap{
+			"formatTime": func(t time.Time) string {
+				return t.Format("2006-01-02 15:04:05")
+			},
+		}
 
-		tmpl := template.Must(template.New("index.html").Parse(`
+		tmpl := template.Must(template.New("index.html").Funcs(funcMap).Parse(`
 		<!DOCTYPE html>
 		<html>
 		<head>
@@ -36,19 +43,17 @@ func WebInit() {
 			<table border="1">
 				<tr>
 					<th>ID</th>
-					<th>Created At</th>
-					<th>Currency</th>
-					<th>Operate</th>
-					<th>Amount</th>
-					<th>Quantity</th>
-					<th>Unit Price</th>
+					<th>时间</th>
+					<th>代币</th>
+					<th>金额</th>
+					<th>数量</th>
+					<th>单价</th>
 				</tr>
 				{{range .Investments}}
 				<tr>
 					<td>{{.ID}}</td>
-					<td>{{.CreatedAt}}</td>
+					<td>{{.CreatedAt | formatTime}}</td>
 					<td>{{.Currency}}</td>
-					<td>{{.Operate}}</td>
 					<td>{{.Amount}}</td>
 					<td>{{.Quantity}}</td>
 					<td>{{.UnitPrice}}</td>
@@ -60,16 +65,14 @@ func WebInit() {
 			<table border="1">
 				<tr>
 					<th>ID</th>
-					<th>Created At</th>
-					<th>Date Form</th>
-					<th>Currency</th>
-					<th>Count</th>
-					<th>Amount</th>
+					<th>日期</th>
+					<th>代币</th>
+					<th>成交次数</th>
+					<th>收益</th>
 				</tr>
 				{{range .Earns}}
 				<tr>
 					<td>{{.ID}}</td>
-					<td>{{.CreatedAt}}</td>
 					<td>{{.DateForm}}</td>
 					<td>{{.Currency}}</td>
 					<td>{{.Count}}</td>

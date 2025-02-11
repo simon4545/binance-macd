@@ -63,7 +63,7 @@ func GetAllInvestments() (invests []Investment) {
 	return
 }
 func GetAllEarns() (earns []Earn) {
-	result := db.Limit(20).Find(&earns)
+	result := db.Order("id desc").Limit(20).Find(&earns)
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
