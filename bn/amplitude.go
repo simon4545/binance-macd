@@ -36,7 +36,7 @@ func calculateAmplitudeAverage(symbol string, limit int) (float64, error) {
 	}
 	average := sum / float64(len(top3Amplitudes))
 
-	return average * 0.9, nil
+	return average * 0.8, nil
 }
 
 func getTopNValues(values []float64, n int) []float64 {

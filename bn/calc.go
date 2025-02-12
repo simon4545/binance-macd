@@ -59,16 +59,16 @@ func recentInvestmentPrice(invests []db.Investment, period string, multi int) (p
 }
 func CheckAmplitude() {
 	for k, _ := range c.Symbols {
-		amplitudes[k] = calculateSymbolAmplitude(k)
+		Amplitudes[k] = calculateSymbolAmplitude(k)
 	}
-	fmt.Println("amplitudes", amplitudes)
+	fmt.Println("amplitudes", Amplitudes)
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop() // 确保在程序退出时停止 Ticker
 
 	// 使用 for 循环监听 Ticker 的 channel
 	for t := range ticker.C {
 		for k, _ := range c.Symbols {
-			amplitudes[k] = calculateSymbolAmplitude(k)
+			Amplitudes[k] = calculateSymbolAmplitude(k)
 		}
 
 		fmt.Printf("执行任务，当前时间: %v\n", t)
@@ -86,10 +86,10 @@ func checkPriceDrop(klines *KLine, symbol string) bool {
 
 	maxHigh := slices.Max(recentHighs)
 	priceDrop := maxHigh - klines.Price
-	if amplitudes[symbol] == 0 {
+	if Amplitudes[symbol] == 0 {
 		return false
 	}
-	return priceDrop > amplitudes[symbol]
+	return priceDrop > Amplitudes[symbol]
 }
 
 func checkRecentBullishCandles(klines *KLine) bool {

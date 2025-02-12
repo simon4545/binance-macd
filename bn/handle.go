@@ -19,7 +19,7 @@ import (
 var orderLocker sync.Mutex
 var client *binance.Client
 var c *configuration.Config
-var amplitudes = make(map[string]float64)
+var Amplitudes = make(map[string]float64)
 
 func Init(config *configuration.Config) {
 	c = config

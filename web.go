@@ -7,6 +7,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/simon4545/binance-macd/bn"
 	"github.com/simon4545/binance-macd/db"
 )
 
@@ -19,9 +20,11 @@ func WebInit() {
 		earns = db.GetAllEarns()
 
 		data := struct {
+			Amplitudes  map[string]float64
 			Investments []db.Investment
 			Earns       []db.Earn
 		}{
+			Amplitudes:  bn.Amplitudes,
 			Investments: investments,
 			Earns:       earns,
 		}
@@ -39,6 +42,9 @@ func WebInit() {
 			<title>Investments and Earns</title>
 		</head>
 		<body>
+			{{range $key, $value := .Amplitudes}}
+				<span><strong>{{$key}}:</strong> {{$value}}</span>
+			{{end}}
 			<h1>Investments</h1>
 			<table border="1">
 				<tr>
