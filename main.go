@@ -36,6 +36,7 @@ func main() {
 	db.InitDB()
 	go bn.Init(config)
 	go WebInit()
+	// go strategy.Run(config)
 	select {}
 }
 

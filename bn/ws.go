@@ -20,7 +20,7 @@ type KLine struct {
 }
 
 func getListKlines(pair string) {
-	klines, err := client.NewKlinesService().Symbol(pair).Interval(c.Symbols[pair].Period).Limit(100).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(pair).Interval(c.Symbols[pair].Period).Limit(288).Do(context.Background())
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -3,6 +3,7 @@ package bn
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -18,28 +19,33 @@ import (
 var orderLocker sync.Mutex
 var client *binance.Client
 var c *configuration.Config
+var amplitudes = make(map[string]float64)
 
 func Init(config *configuration.Config) {
 	c = config
-	db.InitDB()
 	client = binance.NewClient(config.BAPI_KEY, config.BAPI_SCRET)
 	GetSymbolInfo(client)
 	InitWS()
+	go CheckAmplitude()
 	ticker := time.NewTicker(time.Second * 5)
 	go func() {
 		for t := range ticker.C {
 			fmt.Println("定时任务执行，当前时间：", t)
 			for k, _ := range c.Symbols {
 				assetInfo := AssetInfo[k]
-				Handle(k, assetInfo.Price, assetInfo.Close, assetInfo.High, assetInfo.Low)
+				Handle(k, assetInfo)
 			}
 		}
 	}()
 	// go functions.CheckCross(client, config.Symbols, config, Handle)
 }
-func Handle(pair string, lastPrice float64, closingPrices, highPrices, lowPrices []float64) {
+func Handle(pair string, assetInfo *KLine) {
 	orderLocker.Lock()
 	defer orderLocker.Unlock()
+	lastPrice := assetInfo.Price
+	closingPrices := assetInfo.Close
+	// highPrices := assetInfo.High
+	// lowPrices := assetInfo.Low
 	if len(closingPrices) < 30 {
 		return
 	}
@@ -58,11 +64,21 @@ func Handle(pair string, lastPrice float64, closingPrices, highPrices, lowPrices
 	investCount := getInvestmentCount(invests)
 	sumInvestment := getSumInvestment(invests)
 	balance := getSumInvestmentQuantity(invests)
-	invest := recentInvestment(invests)
+	invest := RecentInvestment(invests)
 
 	level := symbolConfig.Level
 	takeprofit := balance*lastPrice - sumInvestment
 	fmt.Println("浮动盈亏", pair, functions.RoundStepSize(takeprofit, 0.1))
+
+	if checkPriceDrop(assetInfo, pair) {
+		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 3)
+		// if checkRecentBullishCandles(assetInfo) {
+		if recentInvestment == -1 {
+			log.Printf("Buy signal detected for %s\n", pair)
+			CreateOrder(c, level, pair, invests)
+		}
+		// }
+	}
 	// 条件
 	// 总持仓不能超过10支，
 	// 一支不能买超过6次
@@ -70,22 +86,21 @@ func Handle(pair string, lastPrice float64, closingPrices, highPrices, lowPrices
 	// 本次进场价要低于上次进场价
 	if len(invests) == 0 || (len(invests) > 0 && lastPrice < invest.UnitPrice*(1-symbolConfig.ForceSell)) {
 		fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "进入强制买入条件")
-		createOrder(c, investCount, pair)
+		CreateOrder(c, investCount, pair, invests)
 	}
 
 	if functions.Crossover(fastSignal, slowSignal) {
-		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period)
+		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 10)
 
-		fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice,
-			"投资数", investCount,
-			"最近持仓平均价", recentInvestment)
-
-		if investCount < level && recentInvestment == -1 {
+		if investCount <= level && recentInvestment == -1 {
 			if invest != nil && lastPrice > invest.UnitPrice*(1-symbolConfig.PriceProtect) {
 				fmt.Println(pair, "价格过于接近，不建仓")
 				return
 			}
-			createOrder(c, investCount, pair)
+			fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "出现金叉", lastPrice,
+				"投资数", investCount,
+				"最近持仓平均价", recentInvestment)
+			CreateOrder(c, investCount, pair, invests)
 		}
 	}
 
@@ -142,8 +157,10 @@ func createSOrder(quantity string, pair string) (amount float64) {
 	}
 	return
 }
-
-func createOrder(c *configuration.Config, investCount int, pair string) {
+func CreateOrder(c *configuration.Config, investCount int, pair string, invests []db.Investment) {
+	if TodayInvestment(invests) > 5 {
+		return
+	}
 	_, quote := functions.SplitSymbol(pair)
 	symbolConfig := c.Symbols[pair]
 	balance := GetBalance(client, quote)
