@@ -28,6 +28,10 @@ type Earn struct {
 	Count     int    `gorm:"default:0"`
 	Amount    float64
 }
+type DBAmount struct {
+	Currency string
+	Amount   float64
+}
 
 func InitDB() {
 	var err error
@@ -76,23 +80,18 @@ func GetInvestments(currency string) (invests []Investment) {
 	}
 	return
 }
-func GetTotalAmount(currency string) (totalAmount float64) {
-	query := db.Model(&Investment{}).Select("SUM(amount)")
-	if currency != "" {
-		query = query.Where("currency = ?", currency)
-	}
-	result := query.Scan(&totalAmount)
+func GetTotalAmount() (totalAmount []DBAmount) {
+
+	query := db.Model(&Investment{}).Select("Currency,SUM(amount)  as Amount")
+	result := query.Group("currency").Scan(&totalAmount)
 	if result.Error != nil {
 		log.Fatal("Query failed:", result.Error)
 	}
 	return
 }
-func GetTotalEarn(currency string) (totalAmount float64) {
-	query := db.Model(&Earn{}).Select("SUM(amount)")
-	if currency != "" {
-		query = query.Where("currency = ?", currency)
-	}
-	result := query.Scan(&totalAmount)
+func GetTotalEarn() (totalAmount []DBAmount) {
+	query := db.Model(&Earn{}).Select("Currency,SUM(amount) as Amount")
+	result := query.Group("currency").Scan(&totalAmount)
 	if result.Error != nil {
 		log.Fatal("Query failed:", result.Error)
 	}

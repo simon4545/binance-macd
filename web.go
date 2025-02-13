@@ -21,8 +21,8 @@ func WebInit() {
 		earns = db.GetAllEarns()
 
 		data := struct {
-			TotalInvestment float64
-			TotalEarn       float64
+			TotalInvestment []db.DBAmount
+			TotalEarn       []db.DBAmount
 			Amplitudes      map[string]float64
 			Investments     []db.Investment
 			Earns           []db.Earn
@@ -30,8 +30,8 @@ func WebInit() {
 			Amplitudes:      bn.Amplitudes,
 			Investments:     investments,
 			Earns:           earns,
-			TotalInvestment: db.GetTotalAmount(""),
-			TotalEarn:       db.GetTotalEarn(""),
+			TotalInvestment: db.GetTotalAmount(),
+			TotalEarn:       db.GetTotalEarn(),
 		}
 		// 创建模板函数，用于格式化时间
 		funcMap := template.FuncMap{
@@ -50,10 +50,9 @@ func WebInit() {
 			<title>Investments and Earns</title>
 		</head>
 		<body>
-			{{range $key, $value := .Amplitudes}}
-				<span><strong>{{$key}}:</strong> {{$value | formatFloat }}</span>
-			{{end}}
-			<h1>Investments({{.TotalInvestment | formatFloat }})</h1>
+			{{range $key, $value := .Amplitudes}} <span><strong>{{$key}}:</strong> {{$value | formatFloat }}</span> {{end}}
+			<h1>Investments</h1>
+			<div>({{range .TotalInvestment}} <span><strong>{{.Currency}}:</strong> {{.Amount | formatFloat }}</span> {{end}})</div>
 			<table border="1">
 				<tr>
 					<th>ID</th>
@@ -75,7 +74,8 @@ func WebInit() {
 				{{end}}
 			</table>
 
-			<h1>Earns({{.TotalEarn | formatFloat }})</h1>
+			<h1>Earns</h1>
+			<div>({{range .TotalEarn}} <span><strong>{{.Currency}}:</strong> {{.Amount | formatFloat }}</span> {{end}})</div>
 			<table border="1">
 				<tr>
 					<th>ID</th>
