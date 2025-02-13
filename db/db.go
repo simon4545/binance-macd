@@ -76,7 +76,28 @@ func GetInvestments(currency string) (invests []Investment) {
 	}
 	return
 }
-
+func GetTotalAmount(currency string) (totalAmount float64) {
+	query := db.Model(&Investment{}).Select("SUM(amount)")
+	if currency != "" {
+		query = query.Where("currency = ?", currency)
+	}
+	result := query.Scan(&totalAmount)
+	if result.Error != nil {
+		log.Fatal("Query failed:", result.Error)
+	}
+	return
+}
+func GetTotalEarn(currency string) (totalAmount float64) {
+	query := db.Model(&Earn{}).Select("SUM(amount)")
+	if currency != "" {
+		query = query.Where("currency = ?", currency)
+	}
+	result := query.Scan(&totalAmount)
+	if result.Error != nil {
+		log.Fatal("Query failed:", result.Error)
+	}
+	return
+}
 func ClearHistory(currency string, earn float64) {
 	result := db.Exec("DELETE FROM investments where currency = ?", currency)
 	if result.Error != nil {

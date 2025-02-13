@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"text/template"
 	"time"
 
@@ -20,18 +21,25 @@ func WebInit() {
 		earns = db.GetAllEarns()
 
 		data := struct {
-			Amplitudes  map[string]float64
-			Investments []db.Investment
-			Earns       []db.Earn
+			TotalInvestment float64
+			TotalEarn       float64
+			Amplitudes      map[string]float64
+			Investments     []db.Investment
+			Earns           []db.Earn
 		}{
-			Amplitudes:  bn.Amplitudes,
-			Investments: investments,
-			Earns:       earns,
+			Amplitudes:      bn.Amplitudes,
+			Investments:     investments,
+			Earns:           earns,
+			TotalInvestment: db.GetTotalAmount(""),
+			TotalEarn:       db.GetTotalEarn(""),
 		}
 		// 创建模板函数，用于格式化时间
 		funcMap := template.FuncMap{
 			"formatTime": func(t time.Time) string {
 				return t.Format("2006-01-02 15:04:05")
+			},
+			"formatFloat": func(t float64) string {
+				return strconv.FormatFloat(t, 'f', 2, 64)
 			},
 		}
 
@@ -43,9 +51,9 @@ func WebInit() {
 		</head>
 		<body>
 			{{range $key, $value := .Amplitudes}}
-				<span><strong>{{$key}}:</strong> {{$value}}</span>
+				<span><strong>{{$key}}:</strong> {{$value | formatFloat }}</span>
 			{{end}}
-			<h1>Investments</h1>
+			<h1>Investments({{.TotalInvestment | formatFloat }})</h1>
 			<table border="1">
 				<tr>
 					<th>ID</th>
@@ -67,7 +75,7 @@ func WebInit() {
 				{{end}}
 			</table>
 
-			<h1>Earns</h1>
+			<h1>Earns({{.TotalEarn | formatFloat }})</h1>
 			<table border="1">
 				<tr>
 					<th>ID</th>
