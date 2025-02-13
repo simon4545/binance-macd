@@ -70,25 +70,30 @@ func Handle(pair string, assetInfo *KLine) {
 	takeprofit := balance*lastPrice - sumInvestment
 	fmt.Println("浮动盈亏", pair, functions.RoundStepSize(takeprofit, 0.1))
 
-	if checkPriceDrop(assetInfo, pair) {
+	if len(invests) == 0 {
+		fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "进入强制买入条件")
+		CreateOrder(c, investCount, pair, invests)
+		return
+	}
+
+	if checkPriceDropRate(assetInfo, pair) {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 3)
 		// if checkRecentBullishCandles(assetInfo) {
 		if recentInvestment == -1 {
+			if invest != nil && lastPrice > invest.UnitPrice*(1-symbolConfig.PriceProtect) {
+				fmt.Println(pair, "价格过于接近，不建仓")
+				return
+			}
 			log.Printf("Buy signal detected for %s\n", pair)
 			CreateOrder(c, level, pair, invests)
 		}
 		// }
 	}
+
 	// 条件
-	// 总持仓不能超过10支，
-	// 一支不能买超过6次
 	// 最近5根k线不能多次交易
 	// 本次进场价要低于上次进场价
-	if len(invests) == 0 || (len(invests) > 0 && lastPrice < invest.UnitPrice*(1-symbolConfig.ForceSell)) {
-		fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "进入强制买入条件")
-		CreateOrder(c, investCount, pair, invests)
-	}
-
+	// || (len(invests) > 0 && lastPrice < invest.UnitPrice*(1-symbolConfig.ForceSell))
 	if functions.Crossover(fastSignal, slowSignal) {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 10)
 

@@ -75,7 +75,7 @@ func CheckAmplitude() {
 	}
 }
 
-func checkPriceDrop(klines *KLine, symbol string) bool {
+func checkPriceDropRate(klines *KLine, symbol string) bool {
 	recentHighs := make([]float64, 0)
 	if len(klines.Close) < 287 {
 		return false
@@ -85,11 +85,11 @@ func checkPriceDrop(klines *KLine, symbol string) bool {
 	}
 
 	maxHigh := slices.Max(recentHighs)
-	priceDrop := maxHigh - klines.Price
+	priceDropRate := 1 - klines.Price/maxHigh
 	if Amplitudes[symbol] == 0 {
 		return false
 	}
-	return priceDrop > Amplitudes[symbol]
+	return priceDropRate > Amplitudes[symbol]
 }
 
 func checkRecentBullishCandles(klines *KLine) bool {

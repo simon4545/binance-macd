@@ -22,9 +22,15 @@ func calculateAmplitudeAverage(symbol string, limit int) (float64, error) {
 
 	amplitudes := make([]float64, 0)
 	for _, kline := range klines {
+		open, _ := strconv.ParseFloat(kline.Open, 64)
+		close, _ := strconv.ParseFloat(kline.Close, 64)
+		if close >= open {
+			continue
+		}
 		high, _ := strconv.ParseFloat(kline.High, 64)
 		low, _ := strconv.ParseFloat(kline.Low, 64)
 		amplitude := high - low
+		amplitude /= high
 		amplitudes = append(amplitudes, amplitude)
 	}
 
@@ -36,7 +42,7 @@ func calculateAmplitudeAverage(symbol string, limit int) (float64, error) {
 	}
 	average := sum / float64(len(top3Amplitudes))
 
-	return average * 0.8, nil
+	return average * 0.9, nil
 }
 
 func getTopNValues(values []float64, n int) []float64 {
