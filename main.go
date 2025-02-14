@@ -49,8 +49,15 @@ func main() {
 	// 启动WebSocket订阅K线数据
 	go subscribeKlineWebSocket()
 	go wsUserReConnect()
+	go PrintRSI()
 	// 保持主程序运行
 	select {}
+}
+func PrintRSI() {
+	for {
+		fmt.Println(rsiValues[len(rsiValues)-1], closes[len(closes)-1])
+		time.Sleep(time.Second * 10)
+	}
 }
 
 // 初始化RSI值
@@ -64,7 +71,7 @@ func initRSI() {
 		closes = append(closes, parseFloat(kline.Close))
 	}
 
-	rsiValues = talib.Rsi(closes, rsiPeriod)
+	rsiValues = talib.Rsi(closes[len(closes)-61:], rsiPeriod)
 	rsiValues = rsiValues[15:]
 	log.Printf("Initialized RSI with %d values\n", len(rsiValues))
 }
@@ -75,6 +82,7 @@ func subscribeKlineWebSocket() {
 		closePrice := parseFloat(event.Kline.Close)
 		// 只在K线结束时处理
 		if event.Kline.IsFinal {
+			closes[len(closes)-1] = closePrice
 			closes = append(closes, closePrice)
 		} else {
 			closes[len(closes)-1] = closePrice
@@ -124,7 +132,7 @@ func updateRSI(closePrice float64) {
 	// for i, price := range rsiValues {
 	// 	closes[i] = price
 	// }
-	rsi := talib.Rsi(closes, rsiPeriod)
+	rsi := talib.Rsi(closes[len(closes)-61:], rsiPeriod)
 	rsi = rsi[15:]
 	// 更新RSI值
 	rsiValues = rsi
@@ -180,18 +188,24 @@ func createOrder(side string, quantity float64) (*futures.CreateOrderResponse, e
 
 // 监控止盈止损
 func monitorTakeProfitStopLoss(entryPrice float64) {
+	for {
+		currentPrice := closes[len(closes)-1]
+		// 计算盈亏比例
+		profit := (entryPrice - currentPrice) / entryPrice
 
-	currentPrice := closes[len(closes)-1]
-	// 计算盈亏比例
-	profit := (entryPrice - currentPrice) / entryPrice
-
-	if profit >= takeProfit {
-		log.Println("达到止盈条件，平仓")
-		closePosition(currentPrice)
-	} else if profit <= -stopLoss {
-		log.Println("达到止损条件，平仓")
-		closePosition(currentPrice)
+		if profit >= takeProfit {
+			log.Println("达到止盈条件，平仓")
+			closePosition(currentPrice)
+			goto EXIT
+		} else if profit <= -stopLoss {
+			log.Println("达到止损条件，平仓")
+			closePosition(currentPrice)
+			goto EXIT
+		}
+		time.Sleep(time.Millisecond * 500)
 	}
+EXIT:
+	return
 }
 
 // 平仓
@@ -207,6 +221,7 @@ func closePosition(exitPrice float64) {
 	}
 	log.Printf("平仓订单已创建，订单ID: %d, 成交价格: %f\n", order.OrderID, exitPrice)
 	positionOpen = false
+	time.Sleep(time.Minute * 10)
 }
 
 // 找到最高的5个RSI值
