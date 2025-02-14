@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/markcheno/go-talib"
 )
@@ -27,15 +26,17 @@ const (
 )
 
 var (
-	client       *futures.Client
-	mu           sync.Mutex
-	rsiValues    []float64
-	closes       []float64
-	entryPrice   float64
-	positionOpen bool
-	orderID      int64
-	wsStop       chan struct{}
-	doneC        chan struct{}
+	client         *futures.Client
+	mu             sync.Mutex
+	rsiValues      []float64
+	closes         []float64
+	entryPrice     float64
+	positionOpen   bool
+	orderID        int64
+	wsStop         chan struct{}
+	doneC          chan struct{}
+	averageTop5RSI float64
+	lostCount      int
 )
 
 func main() {
@@ -55,7 +56,7 @@ func main() {
 }
 func PrintRSI() {
 	for {
-		fmt.Println(rsiValues[len(rsiValues)-1], closes[len(closes)-1])
+		fmt.Println(rsiValues[len(rsiValues)-1], closes[len(closes)-1], averageTop5RSI)
 		time.Sleep(time.Second * 10)
 	}
 }
@@ -71,14 +72,14 @@ func initRSI() {
 		closes = append(closes, parseFloat(kline.Close))
 	}
 
-	rsiValues = talib.Rsi(closes[len(closes)-61:], rsiPeriod)
+	rsiValues = talib.Rsi(closes[len(closes)-91:], rsiPeriod)
 	rsiValues = rsiValues[15:]
 	log.Printf("Initialized RSI with %d values\n", len(rsiValues))
 }
 
 // 订阅K线WebSocket
 func subscribeKlineWebSocket() {
-	wsKlineHandler := func(event *binance.WsKlineEvent) {
+	wsKlineHandler := func(event *futures.WsKlineEvent) {
 		closePrice := parseFloat(event.Kline.Close)
 		// 只在K线结束时处理
 		if event.Kline.IsFinal {
@@ -97,7 +98,7 @@ func subscribeKlineWebSocket() {
 		log.Printf("WebSocket error: %v", err)
 	}
 	var err error
-	doneC, wsStop, err = binance.WsKlineServe(symbol, interval, wsKlineHandler, errHandler)
+	doneC, wsStop, err = futures.WsKlineServe(symbol, interval, wsKlineHandler, errHandler)
 	if err != nil {
 		log.Fatalf("Failed to start WebSocket: %v", err)
 	}
@@ -132,7 +133,7 @@ func updateRSI(closePrice float64) {
 	// for i, price := range rsiValues {
 	// 	closes[i] = price
 	// }
-	rsi := talib.Rsi(closes[len(closes)-61:], rsiPeriod)
+	rsi := talib.Rsi(closes[len(closes)-91:], rsiPeriod)
 	rsi = rsi[15:]
 	// 更新RSI值
 	rsiValues = rsi
@@ -147,7 +148,7 @@ func checkTradingSignal(currentPrice float64) {
 	top5RSI := getTop4RSI(rsiValues)
 
 	// 计算最高5个RSI的平均值
-	averageTop5RSI := calculateAverage(top5RSI)
+	averageTop5RSI = calculateAverage(top5RSI)
 
 	// 获取当前RSI值
 	currentRSI := rsiValues[len(rsiValues)-1]
@@ -176,6 +177,7 @@ func checkTradingSignal(currentPrice float64) {
 func createOrder(side string, quantity float64) (*futures.CreateOrderResponse, error) {
 	order, err := client.NewCreateOrderService().
 		Symbol(symbol).
+		PositionSide(futures.PositionSideTypeShort).
 		Side(futures.SideType(side)).
 		Type(futures.OrderTypeMarket).
 		Quantity(fmt.Sprintf("%f", quantity)).
@@ -196,13 +198,18 @@ func monitorTakeProfitStopLoss(entryPrice float64) {
 		if profit >= takeProfit {
 			log.Println("达到止盈条件，平仓")
 			closePosition(currentPrice)
+			lostCount = 0
 			goto EXIT
 		} else if profit <= -stopLoss {
 			log.Println("达到止损条件，平仓")
 			closePosition(currentPrice)
+			lostCount++
 			goto EXIT
 		}
-		time.Sleep(time.Millisecond * 500)
+		if lostCount > 2 {
+			time.Sleep(time.Millisecond * 500)
+			lostCount = 0
+		}
 	}
 EXIT:
 	return
