@@ -75,12 +75,12 @@ func Handle(pair string, assetInfo *KLine) {
 		CreateOrder(c, investCount, pair, invests)
 		return
 	}
-
+	spacing := CalcSpacing(invests, symbolConfig.PriceProtect)
 	if checkPriceDropRate(assetInfo, pair) {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 3)
 		// if checkRecentBullishCandles(assetInfo) {
 		if recentInvestment == -1 {
-			if invest != nil && lastPrice > invest.UnitPrice*(1-symbolConfig.PriceProtect) {
+			if invest != nil && lastPrice > (invest.UnitPrice-spacing) {
 				fmt.Println(pair, "价格过于接近，不建仓")
 				return
 			}
@@ -98,7 +98,7 @@ func Handle(pair string, assetInfo *KLine) {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 10)
 
 		if investCount <= level && recentInvestment == -1 {
-			if invest != nil && lastPrice > invest.UnitPrice*(1-symbolConfig.PriceProtect) {
+			if invest != nil && lastPrice > (invest.UnitPrice-spacing) {
 				fmt.Println(pair, "价格过于接近，不建仓")
 				return
 			}

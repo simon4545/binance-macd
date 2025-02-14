@@ -26,6 +26,12 @@ func getSumInvestmentQuantity(invests []db.Investment) (sum float64) {
 	}
 	return
 }
+func FirstInvestment(invests []db.Investment) (invest *db.Investment) {
+	if len(invests) == 0 {
+		return nil
+	}
+	return &invests[0]
+}
 func RecentInvestment(invests []db.Investment) (invest *db.Investment) {
 	if len(invests) == 0 {
 		return nil
@@ -101,4 +107,11 @@ func checkRecentBullishCandles(klines *KLine) bool {
 		}
 	}
 	return true
+}
+func CalcSpacing(invests []db.Investment, rate float64) (spacing float64) {
+	first := FirstInvestment(invests)
+	if first == nil {
+		panic("data error")
+	}
+	return (first.UnitPrice / 100) * rate * 100
 }
