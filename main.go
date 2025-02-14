@@ -22,19 +22,24 @@ const (
 	limit      = 300
 	takeProfit = 0.004 // 千分之四
 	stopLoss   = 0.002 // 千分之二
-	quantity   = 100   // 交易数量
+	quantity   = 0.05  // 交易数量
+
 )
 
 var (
 	client       *futures.Client
 	mu           sync.Mutex
 	rsiValues    []float64
+	closes       []float64
 	entryPrice   float64
 	positionOpen bool
 	orderID      int64
+	wsStop       chan struct{}
+	doneC        chan struct{}
 )
 
 func main() {
+	closes = make([]float64, 0)
 	// 初始化币安客户端
 	client = futures.NewClient(apiKey, secretKey)
 
@@ -43,7 +48,7 @@ func main() {
 
 	// 启动WebSocket订阅K线数据
 	go subscribeKlineWebSocket()
-
+	go wsUserReConnect()
 	// 保持主程序运行
 	select {}
 }
@@ -55,31 +60,36 @@ func initRSI() {
 		log.Fatalf("Failed to get historical klines: %v", err)
 	}
 
-	closes := make([]float64, len(klines))
-	for i, kline := range klines {
-		closes[i] = parseFloat(kline.Close)
+	for _, kline := range klines {
+		closes = append(closes, parseFloat(kline.Close))
 	}
 
 	rsiValues = talib.Rsi(closes, rsiPeriod)
+	rsiValues = rsiValues[15:]
 	log.Printf("Initialized RSI with %d values\n", len(rsiValues))
 }
 
 // 订阅K线WebSocket
 func subscribeKlineWebSocket() {
 	wsKlineHandler := func(event *binance.WsKlineEvent) {
-		// 只在K线结束时处理
-		// if event.Kline.IsFinal {
 		closePrice := parseFloat(event.Kline.Close)
+		// 只在K线结束时处理
+		if event.Kline.IsFinal {
+			closes = append(closes, closePrice)
+		} else {
+			closes[len(closes)-1] = closePrice
+		}
+
 		updateRSI(closePrice)
 		checkTradingSignal(closePrice)
-		// }
+
 	}
 
 	errHandler := func(err error) {
 		log.Printf("WebSocket error: %v", err)
 	}
-
-	doneC, _, err := binance.WsKlineServe(symbol, interval, wsKlineHandler, errHandler)
+	var err error
+	doneC, wsStop, err = binance.WsKlineServe(symbol, interval, wsKlineHandler, errHandler)
 	if err != nil {
 		log.Fatalf("Failed to start WebSocket: %v", err)
 	}
@@ -90,25 +100,32 @@ func subscribeKlineWebSocket() {
 	// 保持WebSocket连接
 	<-doneC
 }
+func wsUserReConnect() {
+	for {
+		time.Sleep(55 * time.Minute)
+		fmt.Println("1hour reconnect wsUser")
+		wsStop <- struct{}{}
+	}
+}
 
 // 更新RSI值
 func updateRSI(closePrice float64) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// 添加最新价格到历史数据
-	if len(rsiValues) >= limit {
-		rsiValues = rsiValues[1:]
-	}
-	rsiValues = append(rsiValues, closePrice)
+	// // 添加最新价格到历史数据
+	// if len(rsiValues) >= limit {
+	// 	rsiValues = rsiValues[1:]
+	// }
+	// rsiValues = append(rsiValues, closePrice)
 
 	// 计算RSI
-	closes := make([]float64, len(rsiValues))
-	for i, price := range rsiValues {
-		closes[i] = price
-	}
+	// closes := make([]float64, len(rsiValues))
+	// for i, price := range rsiValues {
+	// 	closes[i] = price
+	// }
 	rsi := talib.Rsi(closes, rsiPeriod)
-
+	rsi = rsi[15:]
 	// 更新RSI值
 	rsiValues = rsi
 }
@@ -163,36 +180,17 @@ func createOrder(side string, quantity float64) (*futures.CreateOrderResponse, e
 
 // 监控止盈止损
 func monitorTakeProfitStopLoss(entryPrice float64) {
-	for {
-		time.Sleep(1 * time.Second) // 每秒检查一次
 
-		// 获取当前市场价格
-		ticker, err := client.NewListPricesService().Do(context.Background())
-		if err != nil {
-			log.Printf("Failed to get ticker price: %v", err)
-			continue
-		}
+	currentPrice := closes[len(closes)-1]
+	// 计算盈亏比例
+	profit := (entryPrice - currentPrice) / entryPrice
 
-		var currentPrice float64
-		for _, t := range ticker {
-			if t.Symbol == symbol {
-				currentPrice = parseFloat(t.Price)
-				break
-			}
-		}
-
-		// 计算盈亏比例
-		profit := (entryPrice - currentPrice) / entryPrice
-
-		if profit >= takeProfit {
-			log.Println("达到止盈条件，平仓")
-			closePosition(currentPrice)
-			break
-		} else if profit <= -stopLoss {
-			log.Println("达到止损条件，平仓")
-			closePosition(currentPrice)
-			break
-		}
+	if profit >= takeProfit {
+		log.Println("达到止盈条件，平仓")
+		closePosition(currentPrice)
+	} else if profit <= -stopLoss {
+		log.Println("达到止损条件，平仓")
+		closePosition(currentPrice)
 	}
 }
 
@@ -213,8 +211,10 @@ func closePosition(exitPrice float64) {
 
 // 找到最高的5个RSI值
 func getTop4RSI(rsiValues []float64) []float64 {
-	sort.Float64s(rsiValues)
-	return rsiValues[len(rsiValues)-4 : len(rsiValues)-1]
+	copied := make([]float64, len(rsiValues))
+	copy(copied, rsiValues)
+	sort.Float64s(copied)
+	return copied[len(copied)-4 : len(copied)-1]
 }
 
 // 计算平均值
