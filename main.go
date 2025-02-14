@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -167,9 +168,17 @@ func checkTradingSignal(currentPrice float64) {
 		}
 		orderID = order.OrderID
 		log.Printf("做空订单已创建，订单ID: %d, 成交价格: %f\n", orderID, entryPrice)
-
+		orderFilledChan := make(chan []string, 0)
+		go CheckOrderById(symbol, order.OrderID, orderFilledChan)
+		values := <-orderFilledChan
+		if len(values) == 3 {
+			entryPrice, _ = strconv.ParseFloat(values[2], 64)
+			// amount, _ := strconv.ParseFloat(values[0], 64)
+			// quantity, _ := strconv.ParseFloat(values[1], 64)
+			// price := functions.RoundStepSize(amount/quantity, configuration.PriceFilterMap[pair])
+		}
 		// 启动止盈止损监控
-		go monitorTakeProfitStopLoss(currentPrice)
+		go monitorTakeProfitStopLoss(entryPrice)
 	}
 }
 
@@ -256,4 +265,20 @@ func parseFloat(s string) float64 {
 		log.Fatalf("Failed to parse float: %v", err)
 	}
 	return f
+}
+func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
+	var order *futures.Order
+	var err error
+	for {
+		order, err = client.NewGetOrderService().Symbol(pair).
+			OrderID(orderId).Do(context.Background())
+		if err != nil {
+			fmt.Println("GetOrderById::error::", err)
+		}
+		if order.Status == futures.OrderStatusTypeFilled {
+			break
+		}
+		time.Sleep(time.Second * 1)
+	}
+	orderFilledChan <- []string{order.CumQuote, order.ExecutedQuantity, order.AvgPrice}
 }
