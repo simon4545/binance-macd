@@ -13,7 +13,7 @@ import (
 
 func PrintRSI() {
 	for {
-		fmt.Println(rsiValues[len(rsiValues)-1], closes[len(closes)-1], averageTop5RSI)
+		fmt.Println(rsiValues[len(rsiValues)-1], closes[len(closes)-1], averageTop5RSI, averageBottom5RSI)
 		time.Sleep(time.Second * 10)
 	}
 }
@@ -96,8 +96,6 @@ func createOrder(positionside futures.PositionSideType, side string, quantity fl
 
 // 平仓
 func openPosition(positionside futures.PositionSideType, quantity float64) (*futures.CreateOrderResponse, error) {
-	mu.Lock()
-	defer mu.Unlock()
 	var side string
 	if positionside == futures.PositionSideTypeShort {
 		side = "SELL"
@@ -118,8 +116,6 @@ func openPosition(positionside futures.PositionSideType, quantity float64) (*fut
 
 // 平仓
 func closePosition(positionside futures.PositionSideType, exitPrice float64) {
-	mu.Lock()
-	defer mu.Unlock()
 	var side string
 	if positionside == futures.PositionSideTypeShort {
 		side = "BUY"

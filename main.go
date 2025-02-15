@@ -58,35 +58,39 @@ func main() {
 
 // 订阅K线WebSocket
 func subscribeKlineWebSocket() {
-	wsKlineHandler := func(event *futures.WsKlineEvent) {
-		closePrice := parseFloat(event.Kline.Close)
-		// 只在K线结束时处理
-		if event.Kline.IsFinal {
-			closes[len(closes)-1] = closePrice
-			closes = append(closes, closePrice)
-		} else {
-			closes[len(closes)-1] = closePrice
+	for {
+		wsKlineHandler := func(event *futures.WsKlineEvent) {
+			closePrice := parseFloat(event.Kline.Close)
+			// 只在K线结束时处理
+			if event.Kline.IsFinal {
+				closes[len(closes)-1] = closePrice
+				closes = append(closes, closePrice)
+			} else {
+				closes[len(closes)-1] = closePrice
+			}
+
+			updateRSI()
+			checkTradingSignal(closePrice)
+
 		}
 
-		updateRSI()
-		checkTradingSignal(closePrice)
+		errHandler := func(err error) {
+			log.Printf("WebSocket error: %v", err)
+		}
+		var err error
+		doneC, wsStop, err = futures.WsKlineServe(symbol, interval, wsKlineHandler, errHandler)
+		if err != nil {
+			log.Fatalf("Failed to start WebSocket: %v", err)
+		}
+		// defer stopC()
 
+		log.Println("WebSocket connected, waiting for kline data...")
+
+		// 保持WebSocket连接
+		<-doneC
+		log.Println("subscribeKlineWebSocket reconnet")
+		time.Sleep(3 * time.Second)
 	}
-
-	errHandler := func(err error) {
-		log.Printf("WebSocket error: %v", err)
-	}
-	var err error
-	doneC, wsStop, err = futures.WsKlineServe(symbol, interval, wsKlineHandler, errHandler)
-	if err != nil {
-		log.Fatalf("Failed to start WebSocket: %v", err)
-	}
-	// defer stopC()
-
-	log.Println("WebSocket connected, waiting for kline data...")
-
-	// 保持WebSocket连接
-	<-doneC
 }
 
 func wsUserReConnect() {
@@ -101,7 +105,7 @@ func wsUserReConnect() {
 func checkTradingSignal(currentPrice float64) {
 	mu.Lock()
 	defer mu.Unlock()
-	if !positionOpen {
+	if positionOpen {
 		return
 	}
 	if lostCount > 2 && time.Now().Before(protectTime.Add(time.Minute*10)) {
