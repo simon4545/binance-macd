@@ -29,6 +29,8 @@ var (
 	mu                sync.Mutex
 	rsiValues         []float64
 	closes            []float64
+	highs             []float64
+	lows              []float64
 	entryPrice        float64
 	positionOpen      bool
 	orderID           int64
@@ -36,8 +38,10 @@ var (
 	doneC             chan struct{}
 	averageTop5RSI    float64
 	averageBottom5RSI float64
+	currentPrice      float64
 	lostCount         int
 	protectTime       time.Time
+	lastAtr           float64
 )
 
 func main() {
@@ -61,17 +65,21 @@ func subscribeKlineWebSocket() {
 	for {
 		wsKlineHandler := func(event *futures.WsKlineEvent) {
 			closePrice := parseFloat(event.Kline.Close)
+			highPrice := parseFloat(event.Kline.High)
+			lowPrice := parseFloat(event.Kline.Low)
+
+			closes[len(closes)-1] = closePrice
+			highs[len(highs)-1] = highPrice
+			lows[len(lows)-1] = lowPrice
 			// 只在K线结束时处理
 			if event.Kline.IsFinal {
-				closes[len(closes)-1] = closePrice
 				closes = append(closes, closePrice)
-			} else {
-				closes[len(closes)-1] = closePrice
+				highs = append(highs, highPrice)
+				lows = append(lows, lowPrice)
 			}
-
+			currentPrice = closePrice
 			updateRSI()
-			checkTradingSignal(closePrice)
-
+			checkTradingSignal()
 		}
 
 		errHandler := func(err error) {
@@ -102,15 +110,9 @@ func wsUserReConnect() {
 }
 
 // 检查交易信号
-func checkTradingSignal(currentPrice float64) {
+func checkTradingSignal() {
 	mu.Lock()
 	defer mu.Unlock()
-	if positionOpen {
-		return
-	}
-	if time.Now().Before(protectTime) {
-		return
-	}
 	// 找到最高的5个RSI值
 	top5RSI := getTop4RSI(rsiValues)
 	bottom5RSI := getBottom4RSI(rsiValues)
@@ -121,13 +123,22 @@ func checkTradingSignal(currentPrice float64) {
 
 	// 获取当前RSI值
 	currentRSI := rsiValues[len(rsiValues)-1]
+	if positionOpen {
+		return
+	}
+	if time.Now().Before(protectTime) {
+		return
+	}
 
+	if lastAtr/currentPrice < 0.003 {
+		return
+	}
 	CheckShort(currentRSI, averageTop5RSI, currentPrice)
 	CheckLong(currentRSI, averageBottom5RSI, currentPrice)
 }
 func CheckShort(currentRSI, averageTop5RSI, currentPrice float64) {
 	// 判断是否做空
-	if currentRSI > averageTop5RSI {
+	if currentRSI > averageTop5RSI && averageTop5RSI < 75 {
 		log.Println("当前RSI高于最高5个RSI的平均值，执行做空操作")
 		entryPrice = currentPrice
 		positionOpen = true
@@ -155,7 +166,7 @@ func CheckShort(currentRSI, averageTop5RSI, currentPrice float64) {
 }
 func CheckLong(currentRSI, averageBottom5RSI, currentPrice float64) {
 	// 判断是否做空
-	if currentRSI < averageBottom5RSI {
+	if currentRSI < averageBottom5RSI && averageTop5RSI > 68 {
 		log.Println("当前RSI低于最高5个RSI的平均值，执行做多操作")
 		entryPrice = currentPrice
 		positionOpen = true
@@ -201,7 +212,7 @@ func monitorLongTPSL(entryPrice float64) {
 			lostCount++
 			if lostCount > 2 {
 				lostCount = 0
-				protectTime = time.Now()
+				protectTime = time.Now().Add(time.Minute * 10)
 			}
 			goto EXIT
 		}
@@ -228,6 +239,7 @@ func monitorShortTPSL(entryPrice float64) {
 			closePosition(futures.PositionSideTypeShort, currentPrice)
 			lostCount++
 			if lostCount > 2 {
+				lostCount = 0
 				protectTime = time.Now().Add(time.Minute * 10)
 			}
 			goto EXIT
