@@ -108,7 +108,7 @@ func checkTradingSignal(currentPrice float64) {
 	if positionOpen {
 		return
 	}
-	if lostCount > 2 && time.Now().Before(protectTime.Add(time.Minute*10)) {
+	if time.Now().Before(protectTime) {
 		return
 	}
 	// 找到最高的5个RSI值
@@ -124,7 +124,6 @@ func checkTradingSignal(currentPrice float64) {
 
 	CheckShort(currentRSI, averageTop5RSI, currentPrice)
 	CheckLong(currentRSI, averageBottom5RSI, currentPrice)
-
 }
 func CheckShort(currentRSI, averageTop5RSI, currentPrice float64) {
 	// 判断是否做空
@@ -201,6 +200,7 @@ func monitorLongTPSL(entryPrice float64) {
 			closePosition(futures.PositionSideTypeLong, currentPrice)
 			lostCount++
 			if lostCount > 2 {
+				lostCount = 0
 				protectTime = time.Now()
 			}
 			goto EXIT
@@ -228,7 +228,7 @@ func monitorShortTPSL(entryPrice float64) {
 			closePosition(futures.PositionSideTypeShort, currentPrice)
 			lostCount++
 			if lostCount > 2 {
-				protectTime = time.Now()
+				protectTime = time.Now().Add(time.Minute * 10)
 			}
 			goto EXIT
 		}
