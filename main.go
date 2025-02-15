@@ -14,13 +14,13 @@ import (
 const (
 	apiKey     = "xzJKM9OUwYXxVrOpG9474d2Tgqx57QyABMzIekxXXzDSRNN5ClsNYlDblVVDqaNx"
 	secretKey  = "NG7W8uzFSu3PGnIx3lAyxIU232rhrQGsIz8n124A5eIlGeKHRnxKNji3V1cLgyzf"
-	symbol     = "ETHUSDT"
+	symbol     = "JUPUSDT"
 	interval   = "5m"
 	rsiPeriod  = 14
-	limit      = 300
+	limit      = 150
 	takeProfit = 0.004 // 千分之四
 	stopLoss   = 0.002 // 千分之二
-	quantity   = 0.05  // 交易数量
+	quantity   = 150   // 交易数量
 
 )
 

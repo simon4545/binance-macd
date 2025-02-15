@@ -30,7 +30,7 @@ func initRSI() {
 	}
 
 	rsiValues = talib.Rsi(closes[len(closes)-91:], rsiPeriod)
-	rsiValues = rsiValues[15:]
+	rsiValues = rsiValues[len(rsiValues)-60:]
 	log.Printf("Initialized RSI with %d values\n", len(rsiValues))
 }
 
@@ -39,7 +39,7 @@ func updateRSI() {
 	mu.Lock()
 	defer mu.Unlock()
 	rsi := talib.Rsi(closes[len(closes)-91:], rsiPeriod)
-	rsi = rsi[15:]
+	rsi = rsi[len(rsi)-60:]
 	// 更新RSI值
 	rsiValues = rsi
 }
@@ -108,7 +108,6 @@ func openPosition(positionside futures.PositionSideType, quantity float64) (*fut
 		log.Printf("Failed to close position: %v", err)
 		return nil, err
 	}
-	log.Printf("开仓订单已创建，订单ID: %d, 交易量: %f\n", order.OrderID, quantity)
 	positionOpen = true
 	return order, nil
 	// time.Sleep(time.Minute * 10)
