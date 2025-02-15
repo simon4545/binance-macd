@@ -4,13 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
-	"github.com/markcheno/go-talib"
 )
 
 const (
@@ -27,18 +25,19 @@ const (
 )
 
 var (
-	client         *futures.Client
-	mu             sync.Mutex
-	rsiValues      []float64
-	closes         []float64
-	entryPrice     float64
-	positionOpen   bool
-	orderID        int64
-	wsStop         chan struct{}
-	doneC          chan struct{}
-	averageTop5RSI float64
-	lostCount      int
-	protectTime    time.Time
+	client            *futures.Client
+	mu                sync.Mutex
+	rsiValues         []float64
+	closes            []float64
+	entryPrice        float64
+	positionOpen      bool
+	orderID           int64
+	wsStop            chan struct{}
+	doneC             chan struct{}
+	averageTop5RSI    float64
+	averageBottom5RSI float64
+	lostCount         int
+	protectTime       time.Time
 )
 
 func main() {
@@ -56,28 +55,6 @@ func main() {
 	// 保持主程序运行
 	select {}
 }
-func PrintRSI() {
-	for {
-		fmt.Println(rsiValues[len(rsiValues)-1], closes[len(closes)-1], averageTop5RSI)
-		time.Sleep(time.Second * 10)
-	}
-}
-
-// 初始化RSI值
-func initRSI() {
-	klines, err := client.NewKlinesService().Symbol(symbol).Interval(interval).Limit(limit).Do(context.Background())
-	if err != nil {
-		log.Fatalf("Failed to get historical klines: %v", err)
-	}
-
-	for _, kline := range klines {
-		closes = append(closes, parseFloat(kline.Close))
-	}
-
-	rsiValues = talib.Rsi(closes[len(closes)-91:], rsiPeriod)
-	rsiValues = rsiValues[15:]
-	log.Printf("Initialized RSI with %d values\n", len(rsiValues))
-}
 
 // 订阅K线WebSocket
 func subscribeKlineWebSocket() {
@@ -91,7 +68,7 @@ func subscribeKlineWebSocket() {
 			closes[len(closes)-1] = closePrice
 		}
 
-		updateRSI(closePrice)
+		updateRSI()
 		checkTradingSignal(closePrice)
 
 	}
@@ -111,6 +88,7 @@ func subscribeKlineWebSocket() {
 	// 保持WebSocket连接
 	<-doneC
 }
+
 func wsUserReConnect() {
 	for {
 		time.Sleep(55 * time.Minute)
@@ -119,91 +97,104 @@ func wsUserReConnect() {
 	}
 }
 
-// 更新RSI值
-func updateRSI(closePrice float64) {
-	mu.Lock()
-	defer mu.Unlock()
-	rsi := talib.Rsi(closes[len(closes)-91:], rsiPeriod)
-	rsi = rsi[15:]
-	// 更新RSI值
-	rsiValues = rsi
-}
-
 // 检查交易信号
 func checkTradingSignal(currentPrice float64) {
 	mu.Lock()
 	defer mu.Unlock()
-
+	if !positionOpen {
+		return
+	}
 	if lostCount > 2 && time.Now().Before(protectTime.Add(time.Minute*10)) {
 		return
 	}
 	// 找到最高的5个RSI值
 	top5RSI := getTop4RSI(rsiValues)
+	bottom5RSI := getBottom4RSI(rsiValues)
 
 	// 计算最高5个RSI的平均值
 	averageTop5RSI = calculateAverage(top5RSI)
+	averageBottom5RSI = calculateAverage(bottom5RSI)
 
 	// 获取当前RSI值
 	currentRSI := rsiValues[len(rsiValues)-1]
 
+	CheckShort(currentRSI, averageTop5RSI, currentPrice)
+	CheckLong(currentRSI, averageBottom5RSI, currentPrice)
+
+}
+func CheckShort(currentRSI, averageTop5RSI, currentPrice float64) {
 	// 判断是否做空
-	if currentRSI > averageTop5RSI && !positionOpen {
+	if currentRSI > averageTop5RSI {
 		log.Println("当前RSI高于最高5个RSI的平均值，执行做空操作")
 		entryPrice = currentPrice
 		positionOpen = true
 
 		// 执行做空操作
-		order, err := createOrder("SELL", quantity)
+		order, err := openPosition(futures.PositionSideTypeShort, quantity)
 		if err != nil {
 			log.Printf("Failed to create order: %v", err)
 			return
 		}
 		orderID = order.OrderID
-		log.Printf("做空订单已创建，订单ID: %d, 成交价格: %f\n", orderID, entryPrice)
-		orderFilledChan := make(chan []string, 0)
+		orderFilledChan := make(chan []string)
 		go CheckOrderById(symbol, order.OrderID, orderFilledChan)
 		values := <-orderFilledChan
 		if len(values) == 3 {
 			entryPrice, _ = strconv.ParseFloat(values[2], 64)
+			log.Printf("做空订单已创建，订单ID: %d, 成交价格: %f\n", orderID, entryPrice)
 			// amount, _ := strconv.ParseFloat(values[0], 64)
 			// quantity, _ := strconv.ParseFloat(values[1], 64)
 			// price := functions.RoundStepSize(amount/quantity, configuration.PriceFilterMap[pair])
 		}
 		// 启动止盈止损监控
-		go monitorTakeProfitStopLoss(entryPrice)
+		go monitorShortTPSL(entryPrice)
 	}
 }
+func CheckLong(currentRSI, averageBottom5RSI, currentPrice float64) {
+	// 判断是否做空
+	if currentRSI < averageBottom5RSI {
+		log.Println("当前RSI低于最高5个RSI的平均值，执行做多操作")
+		entryPrice = currentPrice
+		positionOpen = true
 
-// 创建订单
-func createOrder(side string, quantity float64) (*futures.CreateOrderResponse, error) {
-	order, err := client.NewCreateOrderService().
-		Symbol(symbol).
-		PositionSide(futures.PositionSideTypeShort).
-		Side(futures.SideType(side)).
-		Type(futures.OrderTypeMarket).
-		Quantity(fmt.Sprintf("%f", quantity)).
-		Do(context.Background())
-	if err != nil {
-		return nil, err
+		// 执行做空操作
+		order, err := openPosition(futures.PositionSideTypeLong, quantity)
+		if err != nil {
+			log.Printf("Failed to create order: %v", err)
+			return
+		}
+		orderID = order.OrderID
+
+		orderFilledChan := make(chan []string)
+		go CheckOrderById(symbol, order.OrderID, orderFilledChan)
+		values := <-orderFilledChan
+		if len(values) == 3 {
+			entryPrice, _ = strconv.ParseFloat(values[2], 64)
+			log.Printf("做多订单已创建，订单ID: %d, 成交价格: %f\n", orderID, entryPrice)
+			// amount, _ := strconv.ParseFloat(values[0], 64)
+			// quantity, _ := strconv.ParseFloat(values[1], 64)
+			// price := functions.RoundStepSize(amount/quantity, configuration.PriceFilterMap[pair])
+		}
+		// 启动止盈止损监控
+		go monitorLongTPSL(entryPrice)
 	}
-	return order, nil
 }
 
 // 监控止盈止损
-func monitorTakeProfitStopLoss(entryPrice float64) {
+func monitorLongTPSL(entryPrice float64) {
 	for {
 		currentPrice := closes[len(closes)-1]
 		// 计算盈亏比例
-		profit := (entryPrice - currentPrice) / entryPrice
+		profit := (currentPrice - entryPrice) / entryPrice
 
 		if profit >= takeProfit {
 			log.Println("达到止盈条件，平仓")
-			closePosition(currentPrice)
+			closePosition(futures.PositionSideTypeLong, currentPrice)
 			lostCount = 0
 			goto EXIT
 		} else if profit <= -stopLoss {
 			log.Println("达到止损条件，平仓")
-			closePosition(currentPrice)
+			closePosition(futures.PositionSideTypeLong, currentPrice)
 			lostCount++
 			if lostCount > 2 {
 				protectTime = time.Now()
@@ -216,48 +207,33 @@ EXIT:
 	return
 }
 
-// 平仓
-func closePosition(exitPrice float64) {
-	mu.Lock()
-	defer mu.Unlock()
+// 监控止盈止损
+func monitorShortTPSL(entryPrice float64) {
+	for {
+		currentPrice := closes[len(closes)-1]
+		// 计算盈亏比例
+		profit := (entryPrice - currentPrice) / entryPrice
 
-	// 执行平仓操作
-	order, err := createOrder("BUY", quantity)
-	if err != nil {
-		log.Printf("Failed to close position: %v", err)
-		return
+		if profit >= takeProfit {
+			log.Println("达到止盈条件，平仓")
+			closePosition(futures.PositionSideTypeShort, currentPrice)
+			lostCount = 0
+			goto EXIT
+		} else if profit <= -stopLoss {
+			log.Println("达到止损条件，平仓")
+			closePosition(futures.PositionSideTypeShort, currentPrice)
+			lostCount++
+			if lostCount > 2 {
+				protectTime = time.Now()
+			}
+			goto EXIT
+		}
+
 	}
-	log.Printf("平仓订单已创建，订单ID: %d, 成交价格: %f\n", order.OrderID, exitPrice)
-	positionOpen = false
-	// time.Sleep(time.Minute * 10)
+EXIT:
+	return
 }
 
-// 找到最高的5个RSI值
-func getTop4RSI(rsiValues []float64) []float64 {
-	copied := make([]float64, len(rsiValues))
-	copy(copied, rsiValues)
-	sort.Float64s(copied)
-	return copied[len(copied)-4 : len(copied)-1]
-}
-
-// 计算平均值
-func calculateAverage(values []float64) float64 {
-	sum := 0.0
-	for _, value := range values {
-		sum += value
-	}
-	return sum / float64(len(values))
-}
-
-// 将字符串转换为float64
-func parseFloat(s string) float64 {
-	var f float64
-	_, err := fmt.Sscanf(s, "%f", &f)
-	if err != nil {
-		log.Fatalf("Failed to parse float: %v", err)
-	}
-	return f
-}
 func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
 	var order *futures.Order
 	var err error
