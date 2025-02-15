@@ -38,6 +38,7 @@ var (
 	doneC          chan struct{}
 	averageTop5RSI float64
 	lostCount      int
+	protectTime    time.Time
 )
 
 func main() {
@@ -122,18 +123,6 @@ func wsUserReConnect() {
 func updateRSI(closePrice float64) {
 	mu.Lock()
 	defer mu.Unlock()
-
-	// // 添加最新价格到历史数据
-	// if len(rsiValues) >= limit {
-	// 	rsiValues = rsiValues[1:]
-	// }
-	// rsiValues = append(rsiValues, closePrice)
-
-	// 计算RSI
-	// closes := make([]float64, len(rsiValues))
-	// for i, price := range rsiValues {
-	// 	closes[i] = price
-	// }
 	rsi := talib.Rsi(closes[len(closes)-91:], rsiPeriod)
 	rsi = rsi[15:]
 	// 更新RSI值
@@ -145,6 +134,9 @@ func checkTradingSignal(currentPrice float64) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	if lostCount > 2 && time.Now().Before(protectTime.Add(time.Minute*10)) {
+		return
+	}
 	// 找到最高的5个RSI值
 	top5RSI := getTop4RSI(rsiValues)
 
@@ -213,12 +205,12 @@ func monitorTakeProfitStopLoss(entryPrice float64) {
 			log.Println("达到止损条件，平仓")
 			closePosition(currentPrice)
 			lostCount++
+			if lostCount > 2 {
+				protectTime = time.Now()
+			}
 			goto EXIT
 		}
-		if lostCount > 2 {
-			time.Sleep(time.Millisecond * 500)
-			lostCount = 0
-		}
+
 	}
 EXIT:
 	return
@@ -237,7 +229,7 @@ func closePosition(exitPrice float64) {
 	}
 	log.Printf("平仓订单已创建，订单ID: %d, 成交价格: %f\n", order.OrderID, exitPrice)
 	positionOpen = false
-	time.Sleep(time.Minute * 10)
+	// time.Sleep(time.Minute * 10)
 }
 
 // 找到最高的5个RSI值
