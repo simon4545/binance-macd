@@ -18,8 +18,8 @@ const (
 	interval   = "5m"
 	rsiPeriod  = 14
 	limit      = 150
-	takeProfit = 0.004 // 千分之四
-	stopLoss   = 0.002 // 千分之二
+	takeProfit = 0.006 // 千分之四
+	stopLoss   = 0.003 // 千分之二
 	quantity   = 150   // 交易数量
 
 )
@@ -65,21 +65,21 @@ func subscribeKlineWebSocket() {
 	for {
 		wsKlineHandler := func(event *futures.WsKlineEvent) {
 			closePrice := parseFloat(event.Kline.Close)
-			highPrice := parseFloat(event.Kline.High)
-			lowPrice := parseFloat(event.Kline.Low)
-
-			closes[len(closes)-1] = closePrice
-			highs[len(highs)-1] = highPrice
-			lows[len(lows)-1] = lowPrice
 			// 只在K线结束时处理
 			if event.Kline.IsFinal {
+				highPrice := parseFloat(event.Kline.High)
+				lowPrice := parseFloat(event.Kline.Low)
+
+				// closes[len(closes)-1] = closePrice
+				// highs[len(highs)-1] = highPrice
+				// lows[len(lows)-1] = lowPrice
 				closes = append(closes, closePrice)
 				highs = append(highs, highPrice)
 				lows = append(lows, lowPrice)
+				updateRSI()
+				checkTradingSignal()
 			}
 			currentPrice = closePrice
-			updateRSI()
-			checkTradingSignal()
 		}
 
 		errHandler := func(err error) {
@@ -138,7 +138,8 @@ func checkTradingSignal() {
 }
 func CheckShort(currentRSI, averageTop5RSI, currentPrice float64) {
 	// 判断是否做空
-	if currentRSI > averageTop5RSI && averageTop5RSI < 75 {
+	//  && averageTop5RSI < 75
+	if currentRSI > averageTop5RSI {
 		log.Println("当前RSI高于最高5个RSI的平均值，执行做空操作")
 		entryPrice = currentPrice
 		positionOpen = true
@@ -166,7 +167,8 @@ func CheckShort(currentRSI, averageTop5RSI, currentPrice float64) {
 }
 func CheckLong(currentRSI, averageBottom5RSI, currentPrice float64) {
 	// 判断是否做空
-	if currentRSI < averageBottom5RSI && averageTop5RSI > 68 {
+	//&& averageTop5RSI > 68
+	if currentRSI < averageBottom5RSI {
 		log.Println("当前RSI低于最高5个RSI的平均值，执行做多操作")
 		entryPrice = currentPrice
 		positionOpen = true
@@ -197,23 +199,17 @@ func CheckLong(currentRSI, averageBottom5RSI, currentPrice float64) {
 // 监控止盈止损
 func monitorLongTPSL(entryPrice float64) {
 	for {
-		currentPrice := closes[len(closes)-1]
 		// 计算盈亏比例
 		profit := (currentPrice - entryPrice) / entryPrice
 
 		if profit >= takeProfit {
 			log.Println("达到止盈条件，平仓")
 			closePosition(futures.PositionSideTypeLong, currentPrice)
-			lostCount = 0
 			goto EXIT
 		} else if profit <= -stopLoss {
 			log.Println("达到止损条件，平仓")
 			closePosition(futures.PositionSideTypeLong, currentPrice)
-			lostCount++
-			if lostCount > 2 {
-				lostCount = 0
-				protectTime = time.Now().Add(time.Minute * 10)
-			}
+			protectTime = time.Now().Add(time.Minute * 10)
 			goto EXIT
 		}
 
@@ -225,23 +221,17 @@ EXIT:
 // 监控止盈止损
 func monitorShortTPSL(entryPrice float64) {
 	for {
-		currentPrice := closes[len(closes)-1]
 		// 计算盈亏比例
 		profit := (entryPrice - currentPrice) / entryPrice
 
 		if profit >= takeProfit {
 			log.Println("达到止盈条件，平仓")
 			closePosition(futures.PositionSideTypeShort, currentPrice)
-			lostCount = 0
 			goto EXIT
 		} else if profit <= -stopLoss {
 			log.Println("达到止损条件，平仓")
 			closePosition(futures.PositionSideTypeShort, currentPrice)
-			lostCount++
-			if lostCount > 2 {
-				lostCount = 0
-				protectTime = time.Now().Add(time.Minute * 10)
-			}
+			protectTime = time.Now().Add(time.Minute * 10)
 			goto EXIT
 		}
 

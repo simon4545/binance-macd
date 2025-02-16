@@ -13,8 +13,8 @@ import (
 
 func PrintRSI() {
 	for {
-		fmt.Println(rsiValues[len(rsiValues)-1], closes[len(closes)-1], averageTop5RSI, averageBottom5RSI, lastAtr/currentPrice)
 		time.Sleep(time.Second * 10)
+		fmt.Println(rsiValues[len(rsiValues)-1], currentPrice, averageTop5RSI, averageBottom5RSI, lastAtr/currentPrice)
 	}
 }
 
@@ -26,6 +26,9 @@ func initRSI() {
 	}
 
 	for _, kline := range klines {
+		if kline.CloseTime > time.Now().UnixMilli() {
+			continue
+		}
 		closes = append(closes, parseFloat(kline.Close))
 		highs = append(highs, parseFloat(kline.High))
 		lows = append(lows, parseFloat(kline.Low))
@@ -33,8 +36,8 @@ func initRSI() {
 	atr := talib.Atr(highs, lows, closes, 12)
 	lastAtr = atr[len(atr)-1]
 	rsiValues = talib.Rsi(closes[len(closes)-91:], rsiPeriod)
-	rsiValues = rsiValues[len(rsiValues)-60:]
-	currentPrice = closes[len(closes)-1]
+	rsiValues = rsiValues[len(rsiValues)-48:]
+	currentPrice = parseFloat(klines[len(klines)-1].Close)
 	log.Printf("Initialized RSI with %d values\n", len(rsiValues))
 }
 
@@ -43,7 +46,7 @@ func updateRSI() {
 	mu.Lock()
 	defer mu.Unlock()
 	rsi := talib.Rsi(closes[len(closes)-91:], rsiPeriod)
-	rsi = rsi[len(rsi)-60:]
+	rsi = rsi[len(rsi)-48:]
 	// 更新RSI值
 	rsiValues = rsi
 	atr := talib.Atr(highs, lows, closes, 7)
@@ -55,7 +58,7 @@ func getTop4RSI(rsiValues []float64) []float64 {
 	copied := make([]float64, len(rsiValues))
 	copy(copied, rsiValues)
 	sort.Float64s(copied)
-	return copied[len(copied)-4:]
+	return copied[len(copied)-6 : len(copied)-1]
 }
 
 // 找到最高的5个RSI值
@@ -63,7 +66,7 @@ func getBottom4RSI(rsiValues []float64) []float64 {
 	copied := make([]float64, len(rsiValues))
 	copy(copied, rsiValues)
 	sort.Float64s(copied)
-	return copied[:4]
+	return copied[1:6]
 }
 
 // 计算平均值
