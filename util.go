@@ -117,13 +117,16 @@ func openPosition(positionside futures.PositionSideType, quantity float64) (*fut
 		log.Printf("Failed to close position: %v", err)
 		return nil, err
 	}
+	entryPrice = currentPrice
 	positionOpen = true
+	positionATR = lastAtr
+	positionTime = time.Now()
 	return order, nil
 	// time.Sleep(time.Minute * 10)
 }
 
 // 平仓
-func closePosition(positionside futures.PositionSideType, exitPrice float64) {
+func closePosition(positionside futures.PositionSideType, loss bool) {
 	var side string
 	if positionside == futures.PositionSideTypeShort {
 		side = "BUY"
@@ -136,7 +139,11 @@ func closePosition(positionside futures.PositionSideType, exitPrice float64) {
 		log.Printf("Failed to close position: %v", err)
 		return
 	}
-	log.Printf("平仓订单已创建，订单ID: %d, 成交价格: %f\n", order.OrderID, exitPrice)
+	log.Printf("平仓订单已创建，订单ID: %d, 成交价格: %f\n", order.OrderID, currentPrice)
 	positionOpen = false
+	positionTime = time.Now().Add(time.Hour * 1000000)
+	if loss {
+		protectTime = time.Now().Add(time.Minute * 10)
+	}
 	// time.Sleep(time.Minute * 10)
 }

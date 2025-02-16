@@ -14,13 +14,13 @@ import (
 const (
 	apiKey     = "xzJKM9OUwYXxVrOpG9474d2Tgqx57QyABMzIekxXXzDSRNN5ClsNYlDblVVDqaNx"
 	secretKey  = "NG7W8uzFSu3PGnIx3lAyxIU232rhrQGsIz8n124A5eIlGeKHRnxKNji3V1cLgyzf"
-	symbol     = "JUPUSDT"
+	symbol     = "BTCUSDT"
 	interval   = "5m"
 	rsiPeriod  = 14
 	limit      = 150
 	takeProfit = 0.006 // 千分之四
 	stopLoss   = 0.003 // 千分之二
-	quantity   = 150   // 交易数量
+	quantity   = 0.005 // 交易数量
 
 )
 
@@ -33,6 +33,7 @@ var (
 	lows              []float64
 	entryPrice        float64
 	positionOpen      bool
+	positionTime      time.Time
 	orderID           int64
 	wsStop            chan struct{}
 	doneC             chan struct{}
@@ -42,6 +43,7 @@ var (
 	lostCount         int
 	protectTime       time.Time
 	lastAtr           float64
+	positionATR       float64
 )
 
 func main() {
@@ -140,10 +142,7 @@ func CheckShort(currentRSI, averageTop5RSI, currentPrice float64) {
 	// 判断是否做空
 	//  && averageTop5RSI < 75
 	if currentRSI > averageTop5RSI {
-		log.Println("当前RSI高于最高5个RSI的平均值，执行做空操作")
-		entryPrice = currentPrice
-		positionOpen = true
-
+		log.Println("当前RSI高于最高5个RSI的平均值，执行做空操作", positionATR)
 		// 执行做空操作
 		order, err := openPosition(futures.PositionSideTypeShort, quantity)
 		if err != nil {
@@ -169,10 +168,7 @@ func CheckLong(currentRSI, averageBottom5RSI, currentPrice float64) {
 	// 判断是否做空
 	//&& averageTop5RSI > 68
 	if currentRSI < averageBottom5RSI {
-		log.Println("当前RSI低于最高5个RSI的平均值，执行做多操作")
-		entryPrice = currentPrice
-		positionOpen = true
-
+		log.Println("当前RSI低于最高5个RSI的平均值，执行做多操作", positionATR)
 		// 执行做空操作
 		order, err := openPosition(futures.PositionSideTypeLong, quantity)
 		if err != nil {
@@ -200,16 +196,25 @@ func CheckLong(currentRSI, averageBottom5RSI, currentPrice float64) {
 func monitorLongTPSL(entryPrice float64) {
 	for {
 		// 计算盈亏比例
-		profit := (currentPrice - entryPrice) / entryPrice
-
-		if profit >= takeProfit {
+		// profit := (currentPrice - entryPrice) / entryPrice
+		if time.Now().After(positionTime.Add(time.Minute * 10)) {
+			if currentPrice >= entryPrice {
+				log.Println("达到止盈条件，平仓")
+				closePosition(futures.PositionSideTypeLong, false)
+				goto EXIT
+			} else {
+				log.Println("达到止损条件，平仓")
+				closePosition(futures.PositionSideTypeLong, true)
+				goto EXIT
+			}
+		}
+		if currentPrice >= entryPrice+positionATR*1.5 {
 			log.Println("达到止盈条件，平仓")
-			closePosition(futures.PositionSideTypeLong, currentPrice)
+			closePosition(futures.PositionSideTypeLong, false)
 			goto EXIT
-		} else if profit <= -stopLoss {
+		} else if currentPrice <= entryPrice-positionATR {
 			log.Println("达到止损条件，平仓")
-			closePosition(futures.PositionSideTypeLong, currentPrice)
-			protectTime = time.Now().Add(time.Minute * 10)
+			closePosition(futures.PositionSideTypeLong, true)
 			goto EXIT
 		}
 
@@ -222,16 +227,25 @@ EXIT:
 func monitorShortTPSL(entryPrice float64) {
 	for {
 		// 计算盈亏比例
-		profit := (entryPrice - currentPrice) / entryPrice
-
-		if profit >= takeProfit {
+		// profit := (entryPrice - currentPrice) / entryPrice
+		if time.Now().After(positionTime.Add(time.Minute * 10)) {
+			if currentPrice <= entryPrice {
+				log.Println("达到止盈条件，平仓")
+				closePosition(futures.PositionSideTypeShort, false)
+				goto EXIT
+			} else {
+				log.Println("达到止损条件，平仓")
+				closePosition(futures.PositionSideTypeShort, true)
+				goto EXIT
+			}
+		}
+		if currentPrice <= entryPrice-positionATR*1.5 {
 			log.Println("达到止盈条件，平仓")
-			closePosition(futures.PositionSideTypeShort, currentPrice)
+			closePosition(futures.PositionSideTypeShort, false)
 			goto EXIT
-		} else if profit <= -stopLoss {
+		} else if currentPrice >= entryPrice+positionATR {
 			log.Println("达到止损条件，平仓")
-			closePosition(futures.PositionSideTypeShort, currentPrice)
-			protectTime = time.Now().Add(time.Minute * 10)
+			closePosition(futures.PositionSideTypeShort, true)
 			goto EXIT
 		}
 
