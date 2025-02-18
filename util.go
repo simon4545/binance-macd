@@ -17,6 +17,29 @@ func PrintRSI() {
 		fmt.Println(rsiValues[len(rsiValues)-1], currentPrice, averageTop5RSI, averageBottom5RSI, lastAtr/currentPrice)
 	}
 }
+func initDayAtr() {
+	var closes []float64
+	var highs []float64
+	var lows []float64
+	for {
+		klines, err := client.NewKlinesService().Symbol(symbol).Interval("1d").Limit(100).Do(context.Background())
+		if err != nil {
+			log.Fatalf("Failed to get historical klines: %v", err)
+		}
+
+		for _, kline := range klines {
+			if kline.CloseTime > time.Now().UnixMilli() {
+				continue
+			}
+			closes = append(closes, parseFloat(kline.Close))
+			highs = append(highs, parseFloat(kline.High))
+			lows = append(lows, parseFloat(kline.Low))
+		}
+		atr := talib.Atr(highs, lows, closes, 12)
+		stopLoss = atr[len(atr)-1] / closes[len(closes)-1]
+		time.Sleep(time.Hour * 2)
+	}
+}
 
 // 初始化RSI值
 func initRSI() {
@@ -24,7 +47,7 @@ func initRSI() {
 	if err != nil {
 		log.Fatalf("Failed to get historical klines: %v", err)
 	}
-
+	go initDayAtr()
 	for _, kline := range klines {
 		if kline.CloseTime > time.Now().UnixMilli() {
 			continue
@@ -119,7 +142,7 @@ func openPosition(positionside futures.PositionSideType, quantity float64) (*fut
 	}
 	entryPrice = currentPrice
 	positionOpen = true
-	positionATR = lastAtr
+	positionATR = 0.002
 	positionTime = time.Now()
 	return order, nil
 	// time.Sleep(time.Minute * 10)
@@ -143,7 +166,7 @@ func closePosition(positionside futures.PositionSideType, loss bool) {
 	positionOpen = false
 	positionTime = time.Now().Add(time.Hour * 1000000)
 	if loss {
-		protectTime = time.Now().Add(time.Minute * 10)
+		protectTime = time.Now().Add(time.Hour * 10)
 	}
 	// time.Sleep(time.Minute * 10)
 }
