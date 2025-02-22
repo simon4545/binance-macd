@@ -21,12 +21,14 @@ func WebInit() {
 		earns = db.GetAllEarns()
 
 		data := struct {
+			Balance         float64
 			TotalInvestment []db.DBAmount
 			TotalEarn       []db.DBAmount
 			Amplitudes      map[string]float64
 			Investments     []db.Investment
 			Earns           []db.Earn
 		}{
+			Balance:         bn.GetBalanceWeb(),
 			Amplitudes:      bn.Amplitudes,
 			Investments:     investments,
 			Earns:           earns,
@@ -51,7 +53,7 @@ func WebInit() {
 		</head>
 		<body>
 			{{range $key, $value := .Amplitudes}} <span><strong>{{$key}}:</strong> {{$value | formatFloat }}</span> {{end}}
-			<h1>Investments</h1>
+			<h1>Investments {{.Balance}}</h1>
 			<div>({{range .TotalInvestment}} <span><strong>{{.Currency}}:</strong> {{.Amount | formatFloat }}</span> {{end}})</div>
 			<table border="1">
 				<tr>

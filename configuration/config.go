@@ -71,9 +71,6 @@ func (c *Config) Read() {
 		if v.Amount == 0.0 {
 			v.Amount = 100
 		}
-		if v.Multi == 0.0 {
-			v.Multi = 0.1
-		}
 		if v.Level == 0 {
 			v.Level = 20
 		}

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2"
-	"github.com/markcheno/go-talib"
 	"github.com/shopspring/decimal"
 	"github.com/simon4545/binance-macd/configuration"
 	"github.com/simon4545/binance-macd/db"
@@ -56,8 +55,8 @@ func Handle(pair string, assetInfo *KLine) {
 	}
 	symbolConfig := c.Symbols[pair]
 	symbol, _ := functions.SplitSymbol(pair)
-
-	fastSignal, slowSignal, _ := talib.Macd(closingPrices, 12, 26, 9)
+	upper, lower := functions.SuperTreand(closingPrices)
+	// fastSignal, slowSignal, _ := talib.Macd(closingPrices, 12, 26, 9)
 
 	invests := db.GetInvestments(symbol)
 
@@ -94,7 +93,7 @@ func Handle(pair string, assetInfo *KLine) {
 	// 最近5根k线不能多次交易
 	// 本次进场价要低于上次进场价
 	// || (len(invests) > 0 && lastPrice < invest.UnitPrice*(1-symbolConfig.ForceSell))
-	if functions.Crossover(fastSignal, slowSignal) {
+	if lastPrice > upper {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 10)
 
 		if investCount <= level && recentInvestment == -1 {
@@ -131,7 +130,7 @@ func Handle(pair string, assetInfo *KLine) {
 			quantity := functions.RoundStepSize(v.Quantity, configuration.LotSizeMap[pair])
 			//如果出现死叉
 			//如果现价比建仓价高20%
-			if (functions.Crossdown(fastSignal, slowSignal) && quantity*lastPrice > v.Amount*1.01) ||
+			if (lastPrice < lower && quantity*lastPrice > v.Amount*1.01) ||
 				(quantity*lastPrice > v.Amount*(1+symbolConfig.ForceSell)) {
 				fmt.Println(pair, "出现死叉", balance, lastPrice, "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
 				// 插入卖单
@@ -161,6 +160,9 @@ func createSOrder(quantity string, pair string) (amount float64) {
 		}
 	}
 	return
+}
+func GetBalanceWeb() float64 {
+	return GetBalance(client, "USDT")
 }
 func CreateOrder(c *configuration.Config, investCount int, pair string, invests []db.Investment) {
 	if TodayInvestment(invests) > 5 {
