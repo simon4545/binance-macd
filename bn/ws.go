@@ -8,16 +8,8 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2"
+	"github.com/simon4545/binance-macd/configuration"
 )
-
-type KLine struct {
-	Price float64
-	Date  []int64
-	Open  []float64
-	Close []float64
-	High  []float64
-	Low   []float64
-}
 
 func getListKlines(pair string) {
 	klines, err := client.NewKlinesService().Symbol(pair).Interval(c.Symbols[pair].Period).Limit(288).Do(context.Background())
@@ -27,7 +19,7 @@ func getListKlines(pair string) {
 	}
 	fmt.Println(pair)
 	if AssetInfo[pair] == nil {
-		AssetInfo[pair] = &KLine{
+		AssetInfo[pair] = &configuration.KLine{
 			Date:  []int64{},
 			Open:  []float64{},
 			Close: []float64{},

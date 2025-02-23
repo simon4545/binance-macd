@@ -13,11 +13,11 @@ import (
 	"github.com/simon4545/binance-macd/functions"
 )
 
-var AssetInfo map[string]*KLine
+var AssetInfo map[string]*configuration.KLine
 var wsUserStop chan struct{}
 
 func InitWS() {
-	AssetInfo = make(map[string]*KLine)
+	AssetInfo = make(map[string]*configuration.KLine)
 	InitPriceData(client)
 	go wsUser(client)
 	go WsKline()

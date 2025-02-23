@@ -95,3 +95,12 @@ func (c *Config) Init() {
 		}
 	}()
 }
+
+type KLine struct {
+	Price float64
+	Date  []int64
+	Open  []float64
+	Close []float64
+	High  []float64
+	Low   []float64
+}

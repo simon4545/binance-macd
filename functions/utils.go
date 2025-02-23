@@ -53,9 +53,9 @@ func Crossover(a, b []float64) bool {
 func Crossdown(a, b []float64) bool {
 	return a[len(a)-2] >= b[len(b)-2] && a[len(a)-1] < b[len(b)-1]
 }
-func SuperTreand(closingPrices []float64) (float64, float64) {
-	max := talib.Max(closingPrices, 5)
-	min := talib.Min(closingPrices, 5)
+func SuperTreand(assetInfo *configuration.KLine) (float64, float64) {
+	max := talib.Max(assetInfo.High, 5)
+	min := talib.Min(assetInfo.Low, 5)
 	return max[len(max)-1], min[len(min)-1]
 }
 func checkAtr(client *binance.Client, symbol string, config *configuration.Config) {

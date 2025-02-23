@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/simon4545/binance-macd/configuration"
 	"github.com/simon4545/binance-macd/db"
 	"github.com/simon4545/binance-macd/functions"
 )
@@ -81,7 +82,7 @@ func CheckAmplitude() {
 	}
 }
 
-func checkPriceDropRate(klines *KLine, symbol string) bool {
+func checkPriceDropRate(klines *configuration.KLine, symbol string) bool {
 	recentHighs := make([]float64, 0)
 	if len(klines.Close) < 287 {
 		return false
@@ -98,7 +99,7 @@ func checkPriceDropRate(klines *KLine, symbol string) bool {
 	return priceDropRate > Amplitudes[symbol]
 }
 
-func checkRecentBullishCandles(klines *KLine) bool {
+func checkRecentBullishCandles(klines *configuration.KLine) bool {
 	for i := len(klines.Close) - 2; i < len(klines.Close); i++ {
 		open := klines.Open[i]
 		close := klines.Close[i]

@@ -38,14 +38,11 @@ func Init(config *configuration.Config) {
 	}()
 	// go functions.CheckCross(client, config.Symbols, config, Handle)
 }
-func Handle(pair string, assetInfo *KLine) {
+func Handle(pair string, assetInfo *configuration.KLine) {
 	orderLocker.Lock()
 	defer orderLocker.Unlock()
 	lastPrice := assetInfo.Price
-	closingPrices := assetInfo.Close
-	// highPrices := assetInfo.High
-	// lowPrices := assetInfo.Low
-	if len(closingPrices) < 30 {
+	if len(assetInfo.Close) < 30 {
 		return
 	}
 	//TODO 如果FDUSD交易对，fee本身就是0，这里需要做一次单独处理
@@ -55,7 +52,7 @@ func Handle(pair string, assetInfo *KLine) {
 	}
 	symbolConfig := c.Symbols[pair]
 	symbol, _ := functions.SplitSymbol(pair)
-	upper, lower := functions.SuperTreand(closingPrices)
+	upper, lower := functions.SuperTreand(assetInfo)
 	// fastSignal, slowSignal, _ := talib.Macd(closingPrices, 12, 26, 9)
 
 	invests := db.GetInvestments(symbol)
@@ -67,7 +64,7 @@ func Handle(pair string, assetInfo *KLine) {
 
 	level := symbolConfig.Level
 	takeprofit := balance*lastPrice - sumInvestment
-	fmt.Println("浮动盈亏", pair, functions.RoundStepSize(takeprofit, 0.1))
+	fmt.Println("浮动盈亏", pair, lastPrice, upper, lower, functions.RoundStepSize(takeprofit, 0.1))
 
 	if len(invests) == 0 {
 		fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "进入强制买入条件")
