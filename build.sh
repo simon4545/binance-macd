@@ -1,4 +1,4 @@
-go build -ldflags="-s -w" -o binance-furture
+go build --trimpath -ldflags="-s -w" -o binance-furture
 echo "Build Done"
 #upx -9 binancemacd
 pm2 reload binance-furture
