@@ -64,7 +64,6 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 
 	level := symbolConfig.Level
 	takeprofit := balance*lastPrice - sumInvestment
-	fmt.Println("浮动盈亏", pair, lastPrice, upper, lower, functions.RoundStepSize(takeprofit, 0.1))
 
 	if len(invests) == 0 {
 		fmt.Println(pair, time.Now().Format("2006-01-02 15:04:05"), "进入强制买入条件")
@@ -72,6 +71,7 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 		return
 	}
 	spacing := CalcSpacing(invests, symbolConfig.PriceProtect)
+	fmt.Println("浮动盈亏", pair, lastPrice, upper, lower, spacing, functions.RoundStepSize(takeprofit, 0.1))
 	if checkPriceDropRate(assetInfo, pair) {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 3)
 		// if checkRecentBullishCandles(assetInfo) {
