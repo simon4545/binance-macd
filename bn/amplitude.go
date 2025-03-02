@@ -5,12 +5,37 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/adshao/go-binance/v2"
+	"github.com/adshao/go-binance/v2/futures"
+	"github.com/markcheno/go-talib"
 )
 
 func calculateSymbolAmplitude(symbol string) float64 {
 	amplitudeAvg, _ := calculateAmplitudeAverage(symbol, 30)
 	return amplitudeAvg
+}
+
+// 计算ATR
+func calculateAtr(symbol string, limit int) float64 {
+	klines, err := getKlines(symbol, "4h", limit)
+	if err != nil {
+		return 0
+	}
+	var closes []float64
+	var highs []float64
+	var lows []float64
+	// var opens []float64
+	for _, kline := range klines {
+		// open, _ := strconv.ParseFloat(kline.Open, 64)
+		high, _ := strconv.ParseFloat(kline.High, 64)
+		low, _ := strconv.ParseFloat(kline.Low, 64)
+		close, _ := strconv.ParseFloat(kline.Close, 64)
+		closes = append(closes, close)
+		highs = append(highs, high)
+		lows = append(lows, low)
+		// opens = append(opens, open)
+	}
+	atrs := talib.Atr(highs, lows, closes, 14)
+	return atrs[len(atrs)-1]
 }
 
 // 计算振幅平均值
@@ -71,7 +96,7 @@ func getTopNValues(values []float64, n int) []float64 {
 //		}
 //		return sum / float64(len(klines)-1)
 //	}
-func getKlines(symbol, interval string, limit int) ([]*binance.Kline, error) {
+func getKlines(symbol, interval string, limit int) ([]*futures.Kline, error) {
 	klines, err := client.NewKlinesService().Symbol(symbol).Interval(interval).Limit(limit).Do(context.Background())
 	if err != nil {
 		return nil, err

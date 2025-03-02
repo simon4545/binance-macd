@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2"
+	"github.com/adshao/go-binance/v2/futures"
 	"github.com/shopspring/decimal"
 	"github.com/simon4545/binance-macd/configuration"
 	"github.com/simon4545/binance-macd/functions"
@@ -16,20 +17,21 @@ import (
 var AssetInfo map[string]*KLine
 var wsUserStop chan struct{}
 
-func InitWS() {
+func InitWS(client *futures.Client) {
 	AssetInfo = make(map[string]*KLine)
-	InitPriceData(client)
+	go CheckATR()
+	// InitPriceData(client)
 	go wsUser(client)
-	go WsKline()
+	go WsTicker()
 	go wsUserReConnect()
 }
 
-func InitPriceData(client *binance.Client) {
-	for k, _ := range c.Symbols {
+func InitPriceData(client *futures.Client) {
+	for _, k := range Symbols {
 		getListKlines(k)
 	}
 }
-func getUserStream(client *binance.Client) string {
+func getUserStream(client *futures.Client) string {
 	res, err := client.NewStartUserStreamService().Do(context.Background())
 	if err != nil {
 		fmt.Println(err)
@@ -39,7 +41,7 @@ func getUserStream(client *binance.Client) string {
 	return res
 }
 
-func wsUser(client *binance.Client) {
+func wsUser(client *futures.Client) {
 	listenKey := getUserStream(client)
 	errHandler := func(err error) {
 		fmt.Println("ws user error:", err)

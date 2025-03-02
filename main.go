@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/simon4545/binance-macd/bn"
 	"github.com/spf13/cast"
 )
 
@@ -24,6 +25,7 @@ const (
 )
 
 var (
+	Symbols      = []string{"BTCUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"}
 	client       *futures.Client
 	mu           sync.Mutex
 	orderID      int64
@@ -38,62 +40,62 @@ var (
 func main() {
 	// 初始化币安客户端
 	client = futures.NewClient(apiKey, secretKey)
+	bn.Init(client)
+	// // 创建一个定时器，每5秒触发一次
+	// ticker := time.NewTicker(interval)
+	// defer ticker.Stop()
 
-	// 创建一个定时器，每5秒触发一次
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	// // 无限循环，每5秒执行一次检测
+	// for range ticker.C {
+	// 	fmt.Println("Starting detection...")
 
-	// 无限循环，每5秒执行一次检测
-	for range ticker.C {
-		fmt.Println("Starting detection...")
+	// 	// 1. 检测当前是否有持仓
+	// 	hasPosition, err := checkPosition(client)
+	// 	if err != nil {
+	// 		log.Printf("Error checking position: %v\n", err)
+	// 		continue
+	// 	}
+	// 	if hasPosition {
+	// 		fmt.Println("Already have a position, skipping...")
+	// 		continue
+	// 	}
 
-		// 1. 检测当前是否有持仓
-		hasPosition, err := checkPosition(client)
-		if err != nil {
-			log.Printf("Error checking position: %v\n", err)
-			continue
-		}
-		if hasPosition {
-			fmt.Println("Already have a position, skipping...")
-			continue
-		}
+	// 	// 2. 获取最近30天的K线数据
+	// 	klineData, err = getKlineData(client, 30)
+	// 	if err != nil {
+	// 		log.Printf("Error getting kline data: %v\n", err)
+	// 		continue
+	// 	}
 
-		// 2. 获取最近30天的K线数据
-		klineData, err = getKlineData(client, 30)
-		if err != nil {
-			log.Printf("Error getting kline data: %v\n", err)
-			continue
-		}
+	// 	// 计算前四最大跌幅和涨幅
+	// 	top4Drops, top4Rises := calculateTop4DropsAndRises(klineData)
 
-		// 计算前四最大跌幅和涨幅
-		top4Drops, top4Rises := calculateTop4DropsAndRises(klineData)
+	// 	// 计算平均跌幅和涨幅
+	// 	avgDrop := calculateAverage(top4Drops)
+	// 	avgRise := calculateAverage(top4Rises)
 
-		// 计算平均跌幅和涨幅
-		avgDrop := calculateAverage(top4Drops)
-		avgRise := calculateAverage(top4Rises)
+	// 	// 获取今天的涨跌幅
+	// 	todayChange := getTodayChange(klineData)
 
-		// 获取今天的涨跌幅
-		todayChange := getTodayChange(klineData)
+	// 	// 判断是否达到条件并执行交易
+	// 	if todayChange <= avgDrop {
+	// 		fmt.Println("Today's drop meets the condition, going long...")
+	// 		err = placeOrder(client, futures.SideTypeBuy, futures.PositionSideTypeLong)
+	// 		if err != nil {
+	// 			log.Printf("Error placing long order: %v\n", err)
+	// 		}
+	// 	} else if todayChange >= avgRise {
+	// 		fmt.Println("Today's rise meets the condition, going short...")
+	// 		err = placeOrder(client, futures.SideTypeSell, futures.PositionSideTypeShort)
+	// 		if err != nil {
+	// 			log.Printf("Error placing short order: %v\n", err)
+	// 		}
+	// 	} else {
+	// 		fmt.Println("No trading condition met today.")
+	// 	}
 
-		// 判断是否达到条件并执行交易
-		if todayChange <= avgDrop {
-			fmt.Println("Today's drop meets the condition, going long...")
-			err = placeOrder(client, futures.SideTypeBuy, futures.PositionSideTypeLong)
-			if err != nil {
-				log.Printf("Error placing long order: %v\n", err)
-			}
-		} else if todayChange >= avgRise {
-			fmt.Println("Today's rise meets the condition, going short...")
-			err = placeOrder(client, futures.SideTypeSell, futures.PositionSideTypeShort)
-			if err != nil {
-				log.Printf("Error placing short order: %v\n", err)
-			}
-		} else {
-			fmt.Println("No trading condition met today.")
-		}
-
-		fmt.Println("Detection completed. Waiting for next interval...")
-	}
+	// 	fmt.Println("Detection completed. Waiting for next interval...")
+	// }
 
 	// 启动WebSocket订阅K线数据
 	// go subscribeKlineWebSocket()

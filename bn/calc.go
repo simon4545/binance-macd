@@ -4,67 +4,26 @@ import (
 	"fmt"
 	"slices"
 	"time"
-
-	"github.com/simon4545/binance-macd/db"
-	"github.com/simon4545/binance-macd/functions"
 )
 
-func getInvestmentCount(invests []db.Investment) int {
-	return len(invests)
-}
+func CheckATR() {
+	for _, k := range Symbols {
+		Atrs[k] = calculateAtr(k, 30)
+	}
+	fmt.Println("Atr", Atrs)
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
 
-func getSumInvestment(invests []db.Investment) (sum float64) {
-	for _, item := range invests {
-		sum += item.Amount
-	}
-	return
-}
-
-func getSumInvestmentQuantity(invests []db.Investment) (sum float64) {
-	for _, item := range invests {
-		sum += item.Quantity
-	}
-	return
-}
-func FirstInvestment(invests []db.Investment) (invest *db.Investment) {
-	if len(invests) == 0 {
-		return nil
-	}
-	return &invests[0]
-}
-func RecentInvestment(invests []db.Investment) (invest *db.Investment) {
-	if len(invests) == 0 {
-		return nil
-	}
-	return &invests[len(invests)-1]
-}
-func TodayInvestment(invests []db.Investment) (count int) {
-	if len(invests) == 0 {
-		return 0
-	}
-	now := time.Now()
-	for _, v := range invests {
-		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		if v.CreatedAt.After(startOfDay) {
-			count++
+	for t := range ticker.C {
+		for _, k := range Symbols {
+			Atrs[k] = calculateAtr(k, 30)
 		}
+		fmt.Printf("执行任务，当前时间: %v\n", t)
 	}
-	return
 }
-func recentInvestmentPrice(invests []db.Investment, period string, multi int) (price float64) {
-	if len(invests) == 0 {
-		return -1
-	}
-	intPeriod := functions.ConvertToSeconds(period)
-	current := time.Now().Add(-time.Duration(intPeriod*multi) * time.Second)
-	invest := invests[len(invests)-1]
-	if invest.CreatedAt.Before(current) {
-		return -1
-	}
-	return invest.UnitPrice
-}
+
 func CheckAmplitude() {
-	for k, _ := range c.Symbols {
+	for _, k := range Symbols {
 		Amplitudes[k] = calculateSymbolAmplitude(k)
 	}
 	fmt.Println("amplitudes", Amplitudes)
@@ -73,7 +32,7 @@ func CheckAmplitude() {
 
 	// 使用 for 循环监听 Ticker 的 channel
 	for t := range ticker.C {
-		for k, _ := range c.Symbols {
+		for _, k := range Symbols {
 			Amplitudes[k] = calculateSymbolAmplitude(k)
 		}
 
@@ -107,11 +66,4 @@ func checkRecentBullishCandles(klines *KLine) bool {
 		}
 	}
 	return true
-}
-func CalcSpacing(invests []db.Investment, rate float64) (spacing float64) {
-	first := FirstInvestment(invests)
-	if first == nil {
-		panic("data error")
-	}
-	return (first.UnitPrice / 100) * rate * 100
 }
