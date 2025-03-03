@@ -3,12 +3,14 @@ package bn
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
 
@@ -38,50 +40,57 @@ func Init(fclient *futures.Client) {
 	ticker := time.NewTicker(time.Second * 5)
 	go func() {
 		for t := range ticker.C {
-			HandleUpdatePrice()
+			// HandleUpdatePrice()
 			fmt.Println("定时任务执行，当前时间：", t)
 			for _, k := range Symbols {
 				prices := SymbolPrice[k]
-				if len(prices) > 100 {
-					prices = prices[len(prices)-100:]
-				}
-				max := slices.Max(prices)
-				min := slices.Min(prices)
-				lastPrice := prices[len(prices)-1]
+				lastPrice, _ := lo.Nth(prices, -1)
 				fmt.Println(
 					k,
 					len(prices),
 					"最新价格",
-					strconv.FormatFloat(lastPrice, 'f', 2, 64), k,
+					lastPrice,
 					"最高价",
-					strconv.FormatFloat(max, 'f', 2, 64),
+					lo.Max(prices),
 					"最低价",
-					strconv.FormatFloat(min, 'f', 2, 64),
+					lo.Min(prices),
 					strconv.FormatFloat(Atrs[k], 'f', 2, 64))
-				if lastPrice-min > Atrs[k]*2 {
-					fmt.Println(k, "上涨出大事了")
-					if checkPosition(client, k) == false {
-						placeOrder(client, k, futures.SideTypeBuy, futures.PositionSideTypeLong)
-					}
-				} else if max-lastPrice > Atrs[k]*2 {
-					fmt.Println(k, "下跌出大事了")
-					if checkPosition(client, k) == false {
-						placeOrder(client, k, futures.SideTypeSell, futures.PositionSideTypeShort)
-					}
-				}
+				// 	HandleSymbol(k)
 			}
-
 		}
 	}()
+}
+func HandleSymbol(k string) {
+	// if len(SymbolPrice[k]) > 598 {
+	// 	defer functions.TimeTrack(time.Now(), "Handle")
+	// }
+	prices := SymbolPrice[k]
+	// prices = lo.Subset(prices, -600, math.MaxInt32)
+	max := slices.Max(prices)
+	min := slices.Min(prices)
+	lastPrice, _ := lo.Nth(prices, -1)
+
+	if lastPrice-min > Atrs[k]*2 {
+		fmt.Println(k, "上涨出大事了")
+		if !checkPosition(client, k) {
+			placeOrder(client, k, futures.SideTypeBuy, futures.PositionSideTypeLong)
+		}
+	} else if max-lastPrice > Atrs[k]*2 {
+		fmt.Println(k, "下跌出大事了")
+		if !checkPosition(client, k) {
+			placeOrder(client, k, futures.SideTypeSell, futures.PositionSideTypeShort)
+		}
+	}
 }
 func HandleUpdatePrice() {
 	priceUpdateLocker.Lock()
 	defer priceUpdateLocker.Unlock()
 	for _, k := range Symbols {
-		lenN := len(SymbolPrice[k])
-		if lenN > 150 {
-			SymbolPrice[k] = SymbolPrice[k][lenN-100:]
-		}
+		SymbolPrice[k] = lo.Subset(SymbolPrice[k], -600, math.MaxInt32)
+		// lenN := len(SymbolPrice[k])
+		// if lenN > 150 {
+		// 	SymbolPrice[k] = SymbolPrice[k][lenN-150:]
+		// }
 	}
 }
 

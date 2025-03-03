@@ -22,5 +22,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/samber/lo v1.49.1 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
+	golang.org/x/text v0.21.0 // indirect
 )

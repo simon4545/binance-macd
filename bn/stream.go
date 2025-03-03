@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 	"github.com/simon4545/binance-macd/configuration"
 	"github.com/simon4545/binance-macd/functions"
@@ -25,7 +27,8 @@ func InitWS(client *futures.Client) {
 	go CheckATR()
 	// go wsUser(client)
 	// go wsUserReConnect()
-	go WsTicker()
+	// go WsTicker(HandleSymbol)
+	go WsKline(HandleSymbol)
 }
 
 func getUserStream(client *futures.Client) string {
@@ -141,7 +144,7 @@ func wsKlineHandler(event *futures.WsKlineEvent) {
 }
 
 // websocket Ticker
-func WsTicker() {
+func WsTicker(callback func(string)) {
 	for {
 		var err error
 		var doneC chan struct{}
@@ -152,6 +155,7 @@ func WsTicker() {
 		wsKlineHandler := func(event *futures.WsMarkPriceEvent) {
 			if slices.Contains(Symbols, event.Symbol) {
 				SymbolPrice[event.Symbol] = append(SymbolPrice[event.Symbol], cast.ToFloat64(event.MarkPrice))
+				callback(event.Symbol)
 			}
 		}
 		doneC, _, err = futures.WsCombinedMarkPriceServe(Symbols, wsKlineHandler, errHandler)
@@ -166,10 +170,10 @@ func WsTicker() {
 }
 
 // websocket K线
-func WsKline() {
+func WsKline(callback func(string)) {
 	symbolsWithInterval := make(map[string]string)
 	for _, k := range Symbols {
-		symbolsWithInterval[k] = "5m"
+		symbolsWithInterval[k] = "1m"
 	}
 	for {
 		var err error
@@ -178,7 +182,15 @@ func WsKline() {
 		errHandler := func(err error) {
 			log.Printf("Error: %v", err)
 		}
-
+		wsKlineHandler := func(event *futures.WsKlineEvent) {
+			if slices.Contains(Symbols, event.Symbol) {
+				k := event.Kline
+				close := cast.ToFloat64(k.Close)
+				SymbolPrice[event.Symbol] = append(SymbolPrice[event.Symbol], close)
+				SymbolPrice[event.Symbol] = lo.Subset(SymbolPrice[event.Symbol], -600, math.MaxInt32)
+				callback(event.Symbol)
+			}
+		}
 		// 启动 WebSocket K 线监听
 		doneC, _, err = futures.WsCombinedKlineServe(symbolsWithInterval, wsKlineHandler, errHandler)
 		if err != nil {
