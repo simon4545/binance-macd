@@ -10,6 +10,7 @@ import (
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/markcheno/go-talib"
 	"github.com/simon4545/binance-macd/functions"
 	"github.com/spf13/cast"
 )
@@ -125,6 +126,55 @@ func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
 		time.Sleep(time.Millisecond * 500)
 	}
 	orderFilledChan <- []string{order.CumQuote, order.ExecutedQuantity, order.AvgPrice}
+}
+func CheckATR() {
+	for _, k := range Symbols {
+		Atrs[k] = calculateAtr(k, 30)
+	}
+	fmt.Println("Atr", Atrs)
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for t := range ticker.C {
+		for _, k := range Symbols {
+			Atrs[k] = calculateAtr(k, 30)
+		}
+		fmt.Printf("执行任务，当前时间: %v\n", t)
+	}
+}
+func getKlines(symbol, interval string, limit int) ([]*futures.Kline, error) {
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval(interval).Limit(limit).Do(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return klines, nil
+}
+
+// 计算ATR
+func calculateAtr(symbol string, limit int) float64 {
+	klines, err := getKlines(symbol, "4h", limit)
+	if err != nil {
+		return 0
+	}
+	var closes []float64
+	var highs []float64
+	var lows []float64
+	// var opens []float64
+	for _, kline := range klines {
+		if kline.CloseTime > time.Now().UnixMilli() {
+			continue
+		}
+		// open, _ := strconv.ParseFloat(kline.Open, 64)
+		high, _ := strconv.ParseFloat(kline.High, 64)
+		low, _ := strconv.ParseFloat(kline.Low, 64)
+		close, _ := strconv.ParseFloat(kline.Close, 64)
+		closes = append(closes, close)
+		highs = append(highs, high)
+		lows = append(lows, low)
+		// opens = append(opens, open)
+	}
+	atrs := talib.Atr(highs, lows, closes, 14)
+	return atrs[len(atrs)-1]
 }
 
 // 计算真实波动范围（TR）
