@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"strconv"
 	"time"
 
@@ -208,4 +209,39 @@ func calculateATR(high, low, close []float64, period int) []float64 {
 		}
 	}
 	return atr
+}
+
+func GetSymbolInfo(client *futures.Client) {
+	info, err := client.NewExchangeInfoService().Do(context.Background())
+	if err != nil {
+		print("Error fetching exchange info:", err)
+		os.Exit(1)
+	}
+	for _, s := range info.Symbols {
+		// if strings.HasSuffix(s.Symbol, "USDT") {
+		if s.Status == string(futures.SymbolStatusTypeTrading) {
+			lotSizeFilter := s.LotSizeFilter()
+			quantityTickSize, _ := strconv.ParseFloat(lotSizeFilter.StepSize, 64)
+			LotSizeMap[s.Symbol] = quantityTickSize
+			priceFilter := s.PriceFilter()
+			priceTickSize, _ := strconv.ParseFloat(priceFilter.TickSize, 64)
+			PriceFilterMap[s.Symbol] = priceTickSize
+		}
+		// return
+		// }
+	}
+}
+func GetFeeInfo(client *futures.Client, symbols []string) {
+	for _, s := range symbols {
+		if FeeMap[s] != 0 {
+			continue
+		}
+		rate, err := client.NewCommissionRateService().Symbol(s).Do(context.Background())
+		if err != nil {
+			print("Error fetching trade fee:", err)
+			os.Exit(1)
+		}
+		fee, _ := strconv.ParseFloat(rate.TakerCommissionRate, 64)
+		FeeMap[s] = fee
+	}
 }

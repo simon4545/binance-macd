@@ -20,6 +20,9 @@ var SymbolPrice = make(map[string][]float64)
 var Symbols = []string{"BTCUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"}
 var SymbolDebet = make(map[string]string)
 var SymbolStepSize = make(map[string]float64)
+var LotSizeMap map[string]float64
+var PriceFilterMap map[string]float64
+var FeeMap map[string]float64
 
 func Init(fclient *futures.Client) {
 	client = fclient
