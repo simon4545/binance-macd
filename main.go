@@ -15,7 +15,6 @@ var (
 )
 
 func main() {
-	// 初始化币安客户端
 	client = futures.NewClient(apiKey, secretKey)
 	bn.Init(client)
 	select {}

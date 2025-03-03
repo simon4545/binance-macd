@@ -187,7 +187,7 @@ func WsKline(callback func(string)) {
 				k := event.Kline
 				close := cast.ToFloat64(k.Close)
 				SymbolPrice[event.Symbol] = append(SymbolPrice[event.Symbol], close)
-				SymbolPrice[event.Symbol] = lo.Subset(SymbolPrice[event.Symbol], -600, math.MaxInt32)
+				SymbolPrice[event.Symbol] = lo.Subset(SymbolPrice[event.Symbol], -1000, math.MaxInt32)
 				callback(event.Symbol)
 			}
 		}

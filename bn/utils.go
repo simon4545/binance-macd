@@ -56,7 +56,10 @@ func placeOrder(client *futures.Client, symbol string, side futures.SideType, po
 	if len(values) == 3 {
 		entryPrice, _ := strconv.ParseFloat(values[2], 64)
 		log.Printf("做空订单已创建，订单ID: %d, 成交价格: %f\n", orderID, entryPrice)
-		setTakeProfitAndStopLoss(client, symbol, position, entryPrice, quantity)
+		err = setTakeProfitAndStopLoss(client, symbol, position, entryPrice, quantity)
+		if err != nil {
+			return err
+		}
 		// amount, _ := strconv.ParseFloat(values[0], 64)
 		// quantity, _ := strconv.ParseFloat(values[1], 64)
 		// price := functions.RoundStepSize(amount/quantity, configuration.PriceFilterMap[pair])
