@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -40,10 +41,19 @@ func Init(fclient *futures.Client) {
 				max := slices.Max(prices)
 				min := slices.Min(prices)
 				lastPrice := prices[len(prices)-1]
-				fmt.Println("ss", len(prices), k, max, min, Atrs[k])
-				if lastPrice-min > Atrs[k]*2.5 {
+				fmt.Println(
+					k,
+					len(prices),
+					"最新价格",
+					strconv.FormatFloat(lastPrice, 'f', 2, 64), k,
+					"最高价",
+					strconv.FormatFloat(max, 'f', 2, 64),
+					"最低价",
+					strconv.FormatFloat(min, 'f', 2, 64),
+					strconv.FormatFloat(Atrs[k], 'f', 2, 64))
+				if lastPrice-min > Atrs[k]*2.3 {
 					fmt.Println(k, "上涨出大事了")
-				} else if max-lastPrice > Atrs[k]*2.5 {
+				} else if max-lastPrice > Atrs[k]*2.3 {
 					fmt.Println(k, "下跌出大事了")
 				}
 			}

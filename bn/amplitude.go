@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/markcheno/go-talib"
@@ -25,6 +26,9 @@ func calculateAtr(symbol string, limit int) float64 {
 	var lows []float64
 	// var opens []float64
 	for _, kline := range klines {
+		if kline.CloseTime > time.Now().UnixMilli() {
+			continue
+		}
 		// open, _ := strconv.ParseFloat(kline.Open, 64)
 		high, _ := strconv.ParseFloat(kline.High, 64)
 		low, _ := strconv.ParseFloat(kline.Low, 64)

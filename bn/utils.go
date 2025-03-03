@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"time"
 
@@ -121,4 +122,37 @@ func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
 		time.Sleep(time.Second * 1)
 	}
 	orderFilledChan <- []string{order.CumQuote, order.ExecutedQuantity, order.AvgPrice}
+}
+
+// 计算真实波动范围（TR）
+func calculateTR(high, low, close float64) float64 {
+	tr1 := high - low
+	tr2 := math.Abs(high - close)
+	tr3 := math.Abs(low - close)
+	return math.Max(tr1, math.Max(tr2, tr3))
+}
+
+// 计算ATR
+func calculateATR(high, low, close []float64, period int) []float64 {
+	atr := make([]float64, len(close))
+	trSum := 0.0
+
+	for i := 0; i < len(close); i++ {
+		if i == 0 {
+			// 第一天的TR就是当天的最高价与最低价的差值
+			atr[i] = high[i] - low[i]
+			trSum += atr[i]
+		} else {
+			tr := calculateTR(high[i], low[i], close[i-1])
+			trSum += tr
+			if i < period {
+				// 前period天的ATR是TR的简单平均
+				atr[i] = trSum / float64(i+1)
+			} else {
+				// 之后的ATR是前一天的ATR乘以(period-1)加上当天的TR，再除以period
+				atr[i] = (atr[i-1]*float64(period-1) + tr) / float64(period)
+			}
+		}
+	}
+	return atr
 }
