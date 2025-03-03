@@ -3,7 +3,6 @@ package bn
 import (
 	"context"
 	"fmt"
-	"log"
 	"slices"
 	"strconv"
 	"sync"
@@ -20,6 +19,7 @@ var Atrs = make(map[string]float64)
 var SymbolPrice = make(map[string][]float64)
 var Symbols = []string{"BTCUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"}
 var SymbolDebet = make(map[string]string)
+var SymbolStepSize = make(map[string]float64)
 
 func Init(fclient *futures.Client) {
 	client = fclient
@@ -28,6 +28,10 @@ func Init(fclient *futures.Client) {
 	SymbolDebet["XRPUSDT"] = "100"
 	SymbolDebet["SOLUSDT"] = "1"
 	SymbolDebet["DOGEUSDT"] = "1000"
+	SymbolStepSize["BTCUSDT"] = 0.1
+	SymbolStepSize["XRPUSDT"] = 0.0001
+	SymbolStepSize["SOLUSDT"] = 0.01
+	SymbolStepSize["DOGEUSDT"] = 0.00001
 	ticker := time.NewTicker(time.Second * 5)
 	go func() {
 		for t := range ticker.C {
@@ -51,19 +55,21 @@ func Init(fclient *futures.Client) {
 					"最低价",
 					strconv.FormatFloat(min, 'f', 2, 64),
 					strconv.FormatFloat(Atrs[k], 'f', 2, 64))
-				if lastPrice-min > Atrs[k]*2.3 {
+				if lastPrice-min > Atrs[k]*2 {
 					fmt.Println(k, "上涨出大事了")
-				} else if max-lastPrice > Atrs[k]*2.3 {
+					if checkPosition(client, k) == false {
+						placeOrder(client, k, futures.SideTypeBuy, futures.PositionSideTypeLong)
+					}
+				} else if max-lastPrice > Atrs[k]*2 {
 					fmt.Println(k, "下跌出大事了")
+					if checkPosition(client, k) == false {
+						placeOrder(client, k, futures.SideTypeSell, futures.PositionSideTypeShort)
+					}
 				}
 			}
-			// for _, k := range Symbols {
-			// 	assetInfo := AssetInfo[k]
-			// 	Handle(k, assetInfo)
-			// }
+
 		}
 	}()
-	// go functions.CheckCross(client, config.Symbols, config, Handle)
 }
 func HandleUpdatePrice() {
 	priceUpdateLocker.Lock()
@@ -75,31 +81,19 @@ func HandleUpdatePrice() {
 		}
 	}
 }
-func CheckPosition(client *futures.Client, symbol string) {
-	// 1. 检测当前是否有持仓
-	hasPosition, err := checkPosition(client, symbol)
-	if err != nil {
-		log.Printf("Error checking position: %v\n", err)
-		return
-	}
-	if hasPosition {
-		fmt.Println("Already have a position, skipping...")
-		return
-	}
-}
 
 // 检测当前是否有持仓
-func checkPosition(client *futures.Client, symbol string) (bool, error) {
+func checkPosition(client *futures.Client, symbol string) bool {
 	positions, err := client.NewGetPositionRiskService().Symbol(symbol).Do(context.Background())
 	if err != nil {
-		return false, err
+		return false
 	}
 
 	for _, position := range positions {
 		PositionAmt := cast.ToFloat64(position.PositionAmt)
 		if position.Symbol == symbol && PositionAmt != 0 {
-			return true, nil
+			return true
 		}
 	}
-	return false, nil
+	return false
 }

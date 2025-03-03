@@ -10,6 +10,8 @@ import (
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/simon4545/binance-macd/functions"
+	"github.com/spf13/cast"
 )
 
 func GetBalance(client *binance.Client, token string) float64 {
@@ -76,15 +78,16 @@ func setTakeProfitAndStopLoss(client *futures.Client, symbol string, position fu
 		stopLossPrice = entryPrice + Atrs[symbol]
 		side = futures.SideTypeBuy
 	}
-
+	takeProfitPrice = functions.RoundStepSize(takeProfitPrice, SymbolStepSize[symbol])
+	stopLossPrice = functions.RoundStepSize(stopLossPrice, SymbolStepSize[symbol])
 	// 设置止盈单
 	_, err := client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(side).
 		PositionSide(position).
 		Type(futures.OrderTypeTakeProfitMarket).
-		StopPrice(fmt.Sprintf("%.1f", takeProfitPrice)).
-		Quantity(fmt.Sprintf("%.3f", quantity)).
+		StopPrice(cast.ToString(takeProfitPrice)).
+		Quantity(quantity).
 		Do(context.Background())
 	if err != nil {
 		return fmt.Errorf("error setting take profit order: %v", err)
@@ -96,8 +99,8 @@ func setTakeProfitAndStopLoss(client *futures.Client, symbol string, position fu
 		Side(futures.SideTypeSell).
 		PositionSide(position).
 		Type(futures.OrderTypeStopMarket).
-		StopPrice(fmt.Sprintf("%.1f", stopLossPrice)).
-		Quantity(fmt.Sprintf("%.3f", quantity)).
+		StopPrice(cast.ToString(stopLossPrice)).
+		Quantity(quantity).
 		Do(context.Background())
 	if err != nil {
 		return fmt.Errorf("error setting stop loss order: %v", err)
@@ -119,7 +122,7 @@ func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
 		if order.Status == futures.OrderStatusTypeFilled {
 			break
 		}
-		time.Sleep(time.Second * 1)
+		time.Sleep(time.Millisecond * 500)
 	}
 	orderFilledChan <- []string{order.CumQuote, order.ExecutedQuantity, order.AvgPrice}
 }
