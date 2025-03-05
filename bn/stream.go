@@ -22,8 +22,8 @@ func InitWS(client *futures.Client) {
 	for k := range config.Symbols {
 		getListKlines(k)
 	}
-	// go wsUser(client)
-	// go wsUserReConnect()
+	go wsUser(client)
+	go wsUserReConnect()
 	// go WsTicker(HandleSymbol)
 	go WsKline(HandleSymbol)
 }
@@ -105,7 +105,7 @@ func wsUserReConnect() {
 }
 
 func userWsHandler(event *futures.WsUserDataEvent) {
-	if event.Event != "executionReport" {
+	if event.Event != futures.UserDataEventTypeOrderTradeUpdate {
 		return
 	}
 	message := event.OrderTradeUpdate

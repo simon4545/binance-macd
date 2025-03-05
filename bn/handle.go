@@ -18,6 +18,7 @@ var client *futures.Client
 var Amplitudes = make(map[string]float64)
 var ledisdb *ledis.DB
 var config *configuration.Config
+var SymbolTrade = map[string]bool{}
 
 func InitLedis(ledisdb **ledis.DB) {
 	cfg := lediscfg.NewConfigDefault()
@@ -68,26 +69,35 @@ func HandleSymbol(k string) {
 	mid, _ := lo.Nth(mids, -1)
 	upper := configuration.AtrMap[k]*config.Symbols[k].Multi + lastClose
 	lower := lastClose - configuration.AtrMap[k]*config.Symbols[k].Multi
+
+	result, _ := ledisdb.Get([]byte(k))
+	hasOrder := BytesToInt(result)
 	//做多
-	if lastClose > upper && lastClose2 < upper {
+	if lastClose > upper && lastClose2 < upper && hasOrder == 0 {
 		if checkPosition(k, futures.PositionSideTypeLong) {
 			return
 		}
+		ledisdb.Set([]byte(k), IntToBytes(1))
+		SymbolTrade[k] = true
 		placeOrder(k, futures.SideTypeBuy, futures.PositionSideTypeLong)
 	}
-	//平多
-	if lastClose < mid && checkPosition(k, futures.PositionSideTypeLong) {
-		placeOrder(k, futures.SideTypeSell, futures.PositionSideTypeLong)
-	}
+
 	//做空
-	if lastClose < lower && lastClose2 > lower {
+	if lastClose < lower && lastClose2 > lower && hasOrder == 0 {
 		if checkPosition(k, futures.PositionSideTypeShort) {
 			return
 		}
+		ledisdb.Set([]byte(k), IntToBytes(1))
 		placeOrder(k, futures.SideTypeSell, futures.PositionSideTypeShort)
 	}
+	//平多
+	if lastClose < mid && hasOrder == 1 {
+		ledisdb.Set([]byte(k), IntToBytes(0))
+		placeOrder(k, futures.SideTypeSell, futures.PositionSideTypeLong)
+	}
 	//平空
-	if lastClose > mid && checkPosition(k, futures.PositionSideTypeShort) {
+	if lastClose > mid && hasOrder == 1 {
+		ledisdb.Set([]byte(k), IntToBytes(0))
 		placeOrder(k, futures.SideTypeBuy, futures.PositionSideTypeShort)
 	}
 	// currentTime := time.Now()

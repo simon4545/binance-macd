@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/big"
 	"os"
 	"strconv"
 	"time"
@@ -286,4 +287,19 @@ func GetFeeInfo(client *futures.Client, symbols []string) {
 		fee, _ := strconv.ParseFloat(rate.TakerCommissionRate, 64)
 		configuration.FeeMap[s] = fee
 	}
+}
+func IntToBytes(i int) []byte {
+	if i > 0 {
+		return append(big.NewInt(int64(i)).Bytes(), byte(1))
+	}
+	return append(big.NewInt(int64(i)).Bytes(), byte(0))
+}
+func BytesToInt(b []byte) int {
+	if b == nil {
+		return 0
+	}
+	if b[len(b)-1] == 0 {
+		return -int(big.NewInt(0).SetBytes(b[:len(b)-1]).Int64())
+	}
+	return int(big.NewInt(0).SetBytes(b[:len(b)-1]).Int64())
 }
