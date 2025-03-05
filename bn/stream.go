@@ -183,6 +183,7 @@ func wsKlineHandler(event *futures.WsKlineEvent) {
 		atrs := talib.Atr(assetInfo.High, assetInfo.Low, assetInfo.Close, 20)
 		configuration.AtrMap[k.Symbol], _ = lo.Nth(atrs, -1)
 		fmt.Println("lastKline", configuration.AtrMap)
+		HandleSymbol(k.Symbol)
 	}
 }
 

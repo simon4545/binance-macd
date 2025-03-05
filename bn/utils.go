@@ -34,7 +34,7 @@ func GetBalance(client *binance.Client, token string) float64 {
 }
 
 // 执行交易
-func placeOrder(client *futures.Client, symbol string, side futures.SideType, position futures.PositionSideType) error {
+func placeOrder(symbol string, side futures.SideType, position futures.PositionSideType) error {
 	// 计算合约数量
 	quantity := config.Symbols[symbol].Amount
 
@@ -57,10 +57,45 @@ func placeOrder(client *futures.Client, symbol string, side futures.SideType, po
 	if len(values) == 3 {
 		entryPrice, _ := strconv.ParseFloat(values[2], 64)
 		log.Printf("做空订单已创建，订单ID: %d, 成交价格: %f\n", orderID, entryPrice)
-		err = setTakeProfitAndStopLoss(client, symbol, position, entryPrice, quantity)
-		if err != nil {
-			return err
-		}
+		// err = setTakeProfitAndStopLoss(symbol, position, entryPrice, quantity)
+		// if err != nil {
+		// 	return err
+		// }
+		// amount, _ := strconv.ParseFloat(values[0], 64)
+		// quantity, _ := strconv.ParseFloat(values[1], 64)
+		// price := functions.RoundStepSize(amount/quantity, configuration.PriceFilterMap[pair])
+	}
+	return nil
+}
+
+// 执行交易
+func closeOrder(symbol string, side futures.SideType, position futures.PositionSideType) error {
+	// 计算合约数量
+	quantity := config.Symbols[symbol].Amount
+
+	// 下单
+	order, err := client.NewCreateOrderService().
+		Symbol(symbol).
+		Side(side).
+		PositionSide(position).
+		Type(futures.OrderTypeMarket).
+		Quantity(quantity).
+		Do(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Order placed: %v\n", order)
+	orderID := order.OrderID
+	orderFilledChan := make(chan []string)
+	go CheckOrderById(symbol, order.OrderID, orderFilledChan)
+	values := <-orderFilledChan
+	if len(values) == 3 {
+		entryPrice, _ := strconv.ParseFloat(values[2], 64)
+		log.Printf("做空订单已平仓，订单ID: %d, 成交价格: %f\n", orderID, entryPrice)
+		// err = setTakeProfitAndStopLoss(symbol, position, entryPrice, quantity)
+		// if err != nil {
+		// 	return err
+		// }
 		// amount, _ := strconv.ParseFloat(values[0], 64)
 		// quantity, _ := strconv.ParseFloat(values[1], 64)
 		// price := functions.RoundStepSize(amount/quantity, configuration.PriceFilterMap[pair])
@@ -69,7 +104,7 @@ func placeOrder(client *futures.Client, symbol string, side futures.SideType, po
 }
 
 // 设置止盈和止损
-func setTakeProfitAndStopLoss(client *futures.Client, symbol string, position futures.PositionSideType, entryPrice float64, quantity string) error {
+func setTakeProfitAndStopLoss(symbol string, position futures.PositionSideType, entryPrice float64, quantity string) error {
 	var side futures.SideType
 	// 计算止盈和止损价格
 	var takeProfitPrice, stopLossPrice float64

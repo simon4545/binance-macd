@@ -3,18 +3,17 @@ package bn
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
 	lediscfg "github.com/ledisdb/ledisdb/config"
 	"github.com/ledisdb/ledisdb/ledis"
+	"github.com/markcheno/go-talib"
 	"github.com/samber/lo"
 	"github.com/simon4545/binance-macd/configuration"
 	"github.com/spf13/cast"
 )
 
-var priceUpdateLocker sync.Mutex
 var client *futures.Client
 var Amplitudes = make(map[string]float64)
 var ledisdb *ledis.DB
@@ -33,6 +32,7 @@ func Init(fclient *futures.Client, fconfig *configuration.Config) {
 	GetSymbolInfo(client)
 	GetFeeInfo(client, lo.Keys(config.Symbols))
 	InitWS(client)
+	HandleSymbol("BTCUSDT")
 	ticker := time.NewTicker(time.Second * 5)
 	go func() {
 		for t := range ticker.C {
@@ -60,11 +60,36 @@ func HandleSymbol(k string) {
 	// if len(SymbolPrice[k]) > 598 {
 	// 	defer functions.TimeTrack(time.Now(), "Handle")
 	// }
-	// prices := SymbolPrice[k]
-	// // prices = lo.Subset(prices, -600, math.MaxInt32)
-	// max := slices.Max(prices)
-	// min := slices.Min(prices)
-	// lastPrice, _ := lo.Nth(prices, -1)
+
+	// lastPrice := AssetInfo[k].Price
+	lastClose, _ := lo.Nth(AssetInfo[k].Close, -1)
+	lastClose2, _ := lo.Nth(AssetInfo[k].Close, -2)
+	mids := talib.Sma(AssetInfo[k].Close, 20)
+	mid, _ := lo.Nth(mids, -1)
+	upper := configuration.AtrMap[k]*config.Symbols[k].Multi + lastClose
+	lower := lastClose - configuration.AtrMap[k]*config.Symbols[k].Multi
+	//做多
+	if lastClose > upper && lastClose2 < upper {
+		if checkPosition(k, futures.PositionSideTypeLong) {
+			return
+		}
+		placeOrder(k, futures.SideTypeBuy, futures.PositionSideTypeLong)
+	}
+	//平多
+	if lastClose < mid && checkPosition(k, futures.PositionSideTypeLong) {
+		placeOrder(k, futures.SideTypeSell, futures.PositionSideTypeLong)
+	}
+	//做空
+	if lastClose < lower && lastClose2 > lower {
+		if checkPosition(k, futures.PositionSideTypeShort) {
+			return
+		}
+		placeOrder(k, futures.SideTypeSell, futures.PositionSideTypeShort)
+	}
+	//平空
+	if lastClose > mid && checkPosition(k, futures.PositionSideTypeShort) {
+		placeOrder(k, futures.SideTypeBuy, futures.PositionSideTypeShort)
+	}
 	// currentTime := time.Now()
 	// formattedTime := []byte(currentTime.Format("2006-01-02"))
 	// result, err := ledisdb.Get(formattedTime)
@@ -88,20 +113,9 @@ func HandleSymbol(k string) {
 	// 	}
 	// }
 }
-func HandleUpdatePrice() {
-	priceUpdateLocker.Lock()
-	defer priceUpdateLocker.Unlock()
-	// for k := range config.Symbols {
-	// 	SymbolPrice[k] = lo.Subset(SymbolPrice[k], -600, math.MaxInt32)
-	// 	// lenN := len(SymbolPrice[k])
-	// 	// if lenN > 150 {
-	// 	// 	SymbolPrice[k] = SymbolPrice[k][lenN-150:]
-	// 	// }
-	// }
-}
 
 // 检测当前是否有持仓
-func checkPosition(client *futures.Client, symbol string) bool {
+func checkPosition(symbol string, positionSide futures.PositionSideType) bool {
 	positions, err := client.NewGetPositionRiskService().Symbol(symbol).Do(context.Background())
 	if err != nil {
 		return false
@@ -109,7 +123,7 @@ func checkPosition(client *futures.Client, symbol string) bool {
 
 	for _, position := range positions {
 		PositionAmt := cast.ToFloat64(position.PositionAmt)
-		if position.Symbol == symbol && PositionAmt != 0 {
+		if position.Symbol == symbol && PositionAmt != 0 && position.PositionSide == string(positionSide) {
 			return true
 		}
 	}
