@@ -8,13 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/markcheno/go-talib"
 	"github.com/samber/lo"
-	"github.com/shopspring/decimal"
 	"github.com/simon4545/binance-macd/configuration"
-	"github.com/simon4545/binance-macd/functions"
 )
 
 var AssetInfo map[string]*KLine
@@ -89,7 +86,7 @@ func wsUser(client *futures.Client) {
 	}
 	var err error
 	var doneC chan struct{}
-	doneC, wsUserStop, err = binance.WsUserDataServe(listenKey, userWsHandler, errHandler)
+	doneC, wsUserStop, err = futures.WsUserDataServe(listenKey, userWsHandler, errHandler)
 	if err != nil {
 		fmt.Println("ws user error:", err)
 		return
@@ -107,11 +104,11 @@ func wsUserReConnect() {
 	}
 }
 
-func userWsHandler(event *binance.WsUserDataEvent) {
+func userWsHandler(event *futures.WsUserDataEvent) {
 	if event.Event != "executionReport" {
 		return
 	}
-	message := event.OrderUpdate
+	message := event.OrderTradeUpdate
 	if !strings.HasSuffix(message.Symbol, "USDT") {
 		return
 	}
@@ -120,26 +117,17 @@ func userWsHandler(event *binance.WsUserDataEvent) {
 
 	// }
 	if message.Status == "FILLED" {
-		price, _ := strconv.ParseFloat(message.LatestPrice, 64)
-		symbol := message.Symbol[:len(message.Symbol)-4]
-		feeCost, _ := decimal.NewFromString(message.FeeCost)
-		filledVolume, _ := decimal.NewFromString(message.FilledVolume)
-		gainVolume := filledVolume.Mul(decimal.NewFromFloat(1 - configuration.FeeMap[message.Symbol])).InexactFloat64()
-		step := decimal.NewFromFloat(configuration.LotSizeMap[message.Symbol])
-		gainVolume = functions.RoundStepSizeDecimal(gainVolume, step.InexactFloat64()).InexactFloat64()
-		quoteVolume, _ := strconv.ParseFloat(message.FilledQuoteVolume, 64)
-		fmt.Println("订单成交", symbol, quoteVolume, gainVolume, price, feeCost.InexactFloat64())
+		price, _ := strconv.ParseFloat(message.AveragePrice, 64)
+		symbol := message.Symbol
+		// feeCost, _ := decimal.NewFromString(message.FeeCost)
+		// gainVolume := filledVolume.Mul(decimal.NewFromFloat(1 - configuration.FeeMap[message.Symbol])).InexactFloat64()
+		// step := decimal.NewFromFloat(configuration.LotSizeMap[message.Symbol])
+		// gainVolume = functions.RoundStepSizeDecimal(gainVolume, step.InexactFloat64()).InexactFloat64()
+		// quoteVolume, _ := strconv.ParseFloat(message.AccumulatedFilledQty, 64)
+
 		// quantity, _ := strconv.ParseFloat(message.Volume, 64)
-		if strings.HasPrefix(message.ClientOrderId, "SIM-") && message.Side == string(binance.SideTypeBuy) {
-			// fmt.Println("订单成交-量化", symbol, quoteVolume, gainVolume, price)
-			// invest := Investment{
-			// 	Operate:   "BUY",
-			// 	Currency:  symbol,
-			// 	Amount:    quoteVolume,
-			// 	Quantity:  gainVolume,
-			// 	UnitPrice: price,
-			// }
-			// MakeDBInvestment(invest)
+		if strings.HasPrefix(message.ClientOrderID, "SIM-") && message.Side == futures.SideTypeBuy {
+			fmt.Println("订单成交", symbol, price, message.AccumulatedFilledQty, message.Side, message.PositionSide, message.ClientOrderID)
 		}
 
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/markcheno/go-talib"
+	"github.com/samber/lo"
 	"github.com/simon4545/binance-macd/configuration"
 	"github.com/simon4545/binance-macd/functions"
 	"github.com/spf13/cast"
@@ -42,6 +43,7 @@ func placeOrder(symbol string, side futures.SideType, position futures.PositionS
 	order, err := client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(side).
+		NewClientOrderID(fmt.Sprintf("SIM-%s", lo.RandomString(10, lo.LettersCharset))).
 		PositionSide(position).
 		Type(futures.OrderTypeMarket).
 		Quantity(quantity).
