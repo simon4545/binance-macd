@@ -12,6 +12,7 @@ import (
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/markcheno/go-talib"
+	"github.com/simon4545/binance-macd/configuration"
 	"github.com/simon4545/binance-macd/functions"
 	"github.com/spf13/cast"
 )
@@ -35,7 +36,7 @@ func GetBalance(client *binance.Client, token string) float64 {
 // 执行交易
 func placeOrder(client *futures.Client, symbol string, side futures.SideType, position futures.PositionSideType) error {
 	// 计算合约数量
-	quantity := SymbolDebet[symbol]
+	quantity := config.Symbols[symbol].Amount
 
 	// 下单
 	order, err := client.NewCreateOrderService().
@@ -74,17 +75,17 @@ func setTakeProfitAndStopLoss(client *futures.Client, symbol string, position fu
 	var takeProfitPrice, stopLossPrice float64
 	if position == futures.PositionSideTypeLong {
 		// 做多：止盈为当天振幅的1/4，止损为最近30天的最低价或10%
-		takeProfitPrice = entryPrice + Atrs[symbol]*2
-		stopLossPrice = entryPrice - Atrs[symbol]
+		takeProfitPrice = entryPrice + configuration.AtrMap[symbol]*2
+		stopLossPrice = entryPrice - configuration.AtrMap[symbol]
 		side = futures.SideTypeSell
 	} else {
 		// 做空：止盈为当天振幅的1/4，止损为最近30天的最高价或10%
-		takeProfitPrice = entryPrice - Atrs[symbol]*2
-		stopLossPrice = entryPrice + Atrs[symbol]
+		takeProfitPrice = entryPrice - configuration.AtrMap[symbol]*2
+		stopLossPrice = entryPrice + configuration.AtrMap[symbol]
 		side = futures.SideTypeBuy
 	}
-	takeProfitPrice = functions.RoundStepSize(takeProfitPrice, SymbolStepSize[symbol])
-	stopLossPrice = functions.RoundStepSize(stopLossPrice, SymbolStepSize[symbol])
+	takeProfitPrice = functions.RoundStepSize(takeProfitPrice, configuration.PriceFilterMap[symbol])
+	stopLossPrice = functions.RoundStepSize(stopLossPrice, configuration.PriceFilterMap[symbol])
 	// 设置止盈单
 	_, err := client.NewCreateOrderService().
 		Symbol(symbol).
@@ -132,16 +133,16 @@ func CheckOrderById(pair string, orderId int64, orderFilledChan chan []string) {
 	orderFilledChan <- []string{order.CumQuote, order.ExecutedQuantity, order.AvgPrice}
 }
 func CheckATR() {
-	for _, k := range Symbols {
-		Atrs[k] = calculateAtr(k, 30)
+	for k := range config.Symbols {
+		configuration.AtrMap[k] = calculateAtr(k, 30)
 	}
-	fmt.Println("Atr", Atrs)
+	fmt.Println("Atr", configuration.AtrMap)
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for t := range ticker.C {
-		for _, k := range Symbols {
-			Atrs[k] = calculateAtr(k, 30)
+		for k := range config.Symbols {
+			configuration.AtrMap[k] = calculateAtr(k, 30)
 		}
 		fmt.Printf("执行任务，当前时间: %v\n", t)
 	}
@@ -221,14 +222,15 @@ func GetSymbolInfo(client *futures.Client) {
 		os.Exit(1)
 	}
 	for _, s := range info.Symbols {
-		// if strings.HasSuffix(s.Symbol, "USDT") {
-		if s.Status == string(futures.SymbolStatusTypeTrading) {
-			lotSizeFilter := s.LotSizeFilter()
-			quantityTickSize, _ := strconv.ParseFloat(lotSizeFilter.StepSize, 64)
-			LotSizeMap[s.Symbol] = quantityTickSize
-			priceFilter := s.PriceFilter()
-			priceTickSize, _ := strconv.ParseFloat(priceFilter.TickSize, 64)
-			PriceFilterMap[s.Symbol] = priceTickSize
+		if config.Symbols[s.Symbol] != nil {
+			if s.Status == string(futures.SymbolStatusTypeTrading) {
+				lotSizeFilter := s.LotSizeFilter()
+				quantityTickSize, _ := strconv.ParseFloat(lotSizeFilter.StepSize, 64)
+				configuration.LotSizeMap[s.Symbol] = quantityTickSize
+				priceFilter := s.PriceFilter()
+				priceTickSize, _ := strconv.ParseFloat(priceFilter.TickSize, 64)
+				configuration.PriceFilterMap[s.Symbol] = priceTickSize
+			}
 		}
 		// return
 		// }
@@ -236,7 +238,7 @@ func GetSymbolInfo(client *futures.Client) {
 }
 func GetFeeInfo(client *futures.Client, symbols []string) {
 	for _, s := range symbols {
-		if FeeMap[s] != 0 {
+		if configuration.FeeMap[s] != 0 {
 			continue
 		}
 		rate, err := client.NewCommissionRateService().Symbol(s).Do(context.Background())
@@ -245,6 +247,6 @@ func GetFeeInfo(client *futures.Client, symbols []string) {
 			os.Exit(1)
 		}
 		fee, _ := strconv.ParseFloat(rate.TakerCommissionRate, 64)
-		FeeMap[s] = fee
+		configuration.FeeMap[s] = fee
 	}
 }

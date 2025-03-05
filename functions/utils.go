@@ -55,7 +55,7 @@ func Crossdown(a, b []float64) bool {
 }
 
 func checkAtr(client *binance.Client, symbol string, config *configuration.Config) {
-	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(config.Symbols[symbol].Period).Limit(100).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval(config.Symbols[symbol].Period).Limit(100).Do(context.Background())
 	if err != nil {
 		print(err)
 		return

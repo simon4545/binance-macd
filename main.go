@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/simon4545/binance-macd/bn"
+	"github.com/simon4545/binance-macd/configuration"
 )
 
 const (
@@ -15,7 +16,9 @@ var (
 )
 
 func main() {
+	config := &configuration.Config{}
+	config.Init()
 	client = futures.NewClient(apiKey, secretKey)
-	bn.Init(client)
+	bn.Init(client, config)
 	select {}
 }

@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/adshao/go-binance/v2"
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/markcheno/go-talib"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 	"github.com/simon4545/binance-macd/configuration"
 	"github.com/simon4545/binance-macd/functions"
-	"github.com/spf13/cast"
 )
 
 var AssetInfo map[string]*KLine
@@ -24,13 +22,56 @@ var wsUserStop chan struct{}
 
 func InitWS(client *futures.Client) {
 	AssetInfo = make(map[string]*KLine)
-	go CheckATR()
+	for k := range config.Symbols {
+		getListKlines(k)
+	}
 	// go wsUser(client)
 	// go wsUserReConnect()
 	// go WsTicker(HandleSymbol)
 	go WsKline(HandleSymbol)
 }
 
+func getListKlines(pair string) {
+	klines, err := client.NewKlinesService().Symbol(pair).Interval(config.Symbols[pair].Period).Limit(100).Do(context.Background())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(pair)
+	if AssetInfo[pair] == nil {
+		AssetInfo[pair] = &KLine{
+			Date:  []int64{},
+			Open:  []float64{},
+			Close: []float64{},
+			High:  []float64{},
+			Low:   []float64{},
+		}
+	}
+	assetInfo := AssetInfo[pair]
+	assetInfo.Price, _ = strconv.ParseFloat(klines[len(klines)-1].Close, 64)
+	for _, k := range klines {
+		if k.CloseTime > time.Now().UnixMilli() {
+			continue
+		}
+		// tm := time.Unix(k.OpenTime, 0).Local()
+		timestamp := k.OpenTime
+		// unixTime := timestamp / 1000 // 将时间戳转为秒级时间戳
+		// nanoSecond := (timestamp % 1000000) * 1000 // 将时间戳的微秒部分转为纳秒
+		// timeFromUnix := time.Unix(unixTime, 0).Local()
+		close, _ := strconv.ParseFloat(k.Close, 64)
+		open, _ := strconv.ParseFloat(k.Open, 64)
+		high, _ := strconv.ParseFloat(k.High, 64)
+		low, _ := strconv.ParseFloat(k.Low, 64)
+		assetInfo.Close = append(assetInfo.Close, close)
+		assetInfo.Open = append(assetInfo.Open, open)
+		assetInfo.High = append(assetInfo.High, high)
+		assetInfo.Low = append(assetInfo.Low, low)
+		assetInfo.Date = append(assetInfo.Date, timestamp)
+	}
+	atrs := talib.Atr(assetInfo.High, assetInfo.Low, assetInfo.Close, 20)
+	configuration.AtrMap[pair], _ = lo.Nth(atrs, -1)
+	fmt.Println("lastKline", configuration.AtrMap)
+}
 func getUserStream(client *futures.Client) string {
 	res, err := client.NewStartUserStreamService().Do(context.Background())
 	if err != nil {
@@ -139,7 +180,9 @@ func wsKlineHandler(event *futures.WsKlineEvent) {
 			assetInfo.Low = append(assetInfo.Low, low)
 			assetInfo.Date = append(assetInfo.Date, timestamp)
 		}
-		fmt.Println("lastKline", lastKline, timestamp, "changdu", len(assetInfo.Close), k.Symbol)
+		atrs := talib.Atr(assetInfo.High, assetInfo.Low, assetInfo.Close, 20)
+		configuration.AtrMap[k.Symbol], _ = lo.Nth(atrs, -1)
+		fmt.Println("lastKline", configuration.AtrMap)
 	}
 }
 
@@ -153,12 +196,13 @@ func WsTicker(callback func(string)) {
 			log.Printf("Error: %v", err)
 		}
 		wsKlineHandler := func(event *futures.WsMarkPriceEvent) {
-			if slices.Contains(Symbols, event.Symbol) {
-				SymbolPrice[event.Symbol] = append(SymbolPrice[event.Symbol], cast.ToFloat64(event.MarkPrice))
-				callback(event.Symbol)
-			}
+			// if config.Symbols[event.Symbol] != nil {
+			// 	SymbolPrice[event.Symbol] = append(SymbolPrice[event.Symbol], cast.ToFloat64(event.MarkPrice))
+			// 	callback(event.Symbol)
+			// }
 		}
-		doneC, _, err = futures.WsCombinedMarkPriceServe(Symbols, wsKlineHandler, errHandler)
+		symbols := lo.Keys(config.Symbols)
+		doneC, _, err = futures.WsCombinedMarkPriceServe(symbols, wsKlineHandler, errHandler)
 		if err != nil {
 			log.Printf("Failed to start WebSocket for: %v", err)
 			time.Sleep(3 * time.Second)
@@ -172,8 +216,8 @@ func WsTicker(callback func(string)) {
 // websocket K线
 func WsKline(callback func(string)) {
 	symbolsWithInterval := make(map[string]string)
-	for _, k := range Symbols {
-		symbolsWithInterval[k] = "1m"
+	for k := range config.Symbols {
+		symbolsWithInterval[k] = config.Symbols[k].Period
 	}
 	for {
 		var err error
@@ -182,15 +226,15 @@ func WsKline(callback func(string)) {
 		errHandler := func(err error) {
 			log.Printf("Error: %v", err)
 		}
-		wsKlineHandler := func(event *futures.WsKlineEvent) {
-			if slices.Contains(Symbols, event.Symbol) {
-				k := event.Kline
-				close := cast.ToFloat64(k.Close)
-				SymbolPrice[event.Symbol] = append(SymbolPrice[event.Symbol], close)
-				SymbolPrice[event.Symbol] = lo.Subset(SymbolPrice[event.Symbol], -1000, math.MaxInt32)
-				callback(event.Symbol)
-			}
-		}
+		// wsKlineHandler := func(event *futures.WsKlineEvent) {
+		// 	if config.Symbols[event.Symbol] != nil {
+		// 		k := event.Kline
+		// 		close := cast.ToFloat64(k.Close)
+		// 		SymbolPrice[event.Symbol] = append(SymbolPrice[event.Symbol], close)
+		// 		SymbolPrice[event.Symbol] = lo.Subset(SymbolPrice[event.Symbol], -1000, math.MaxInt32)
+		// 		callback(event.Symbol)
+		// 	}
+		// }
 		// 启动 WebSocket K 线监听
 		doneC, _, err = futures.WsCombinedKlineServe(symbolsWithInterval, wsKlineHandler, errHandler)
 		if err != nil {
