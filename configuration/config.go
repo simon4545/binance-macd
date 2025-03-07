@@ -63,11 +63,14 @@ func (c *Config) Read() {
 	// if c.Port == 0 {
 	// 	c.Port = findAvailablePort(8888)
 	// }
-	// for _, v := range c.Symbols {
-	// 	if v.Amount == "" {
-	// 		v.Amount = ""
-	// 	}
-	// }
+	for _, v := range c.Symbols {
+		if v.Multi == 0 {
+			v.Multi = 2.5
+		}
+		if v.Period == "" {
+			v.Period = "4h"
+		}
+	}
 	fmt.Println(c)
 }
 func (c *Config) Init() {

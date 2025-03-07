@@ -18,7 +18,6 @@ var client *futures.Client
 var Amplitudes = make(map[string]float64)
 var ledisdb *ledis.DB
 var config *configuration.Config
-var SymbolTrade = map[string]bool{}
 
 func InitLedis(ledisdb **ledis.DB) {
 	cfg := lediscfg.NewConfigDefault()
@@ -33,27 +32,11 @@ func Init(fclient *futures.Client, fconfig *configuration.Config) {
 	GetSymbolInfo(client)
 	GetFeeInfo(client, lo.Keys(config.Symbols))
 	InitWS(client)
-	HandleSymbol("BTCUSDT")
+	// HandleSymbol("BTCUSDT")
 	ticker := time.NewTicker(time.Second * 5)
 	go func() {
-		for t := range ticker.C {
-			// HandleUpdatePrice()
-			fmt.Println("定时任务执行，当前时间：", t)
-			// for k, _ := range config.Symbols {
-			// prices := SymbolPrice[k]
-			// lastPrice, _ := lo.Nth(prices, -1)
-			// fmt.Println(
-			// 	k,
-			// 	len(prices),
-			// 	"最新价格",
-			// 	lastPrice,
-			// 	"最高价",
-			// 	lo.Max(prices),
-			// 	"最低价",
-			// 	lo.Min(prices),
-			// 	strconv.FormatFloat(Atrs[k], 'f', 2, 64))
-			// 	HandleSymbol(k)
-			// }
+		for range ticker.C {
+			fmt.Println("定时任务执行，当前时间：", configuration.AtrMap)
 		}
 	}()
 }
@@ -78,7 +61,6 @@ func HandleSymbol(k string) {
 			return
 		}
 		ledisdb.Set([]byte(k), IntToBytes(1))
-		SymbolTrade[k] = true
 		placeOrder(k, futures.SideTypeBuy, futures.PositionSideTypeLong)
 	}
 
@@ -102,26 +84,6 @@ func HandleSymbol(k string) {
 	}
 	// currentTime := time.Now()
 	// formattedTime := []byte(currentTime.Format("2006-01-02"))
-	// result, err := ledisdb.Get(formattedTime)
-	// if result != nil && cast.ToInt(string(result)) > 3 {
-	// 	return
-	// }
-
-	// if lastPrice-min > Atrs[k]*2 {
-	// 	fmt.Println(k, "上涨出大事了")
-	// 	if !checkPosition(client, k) {
-	// 		if err = placeOrder(client, k, futures.SideTypeBuy, futures.PositionSideTypeLong); err == nil {
-	// 			ledisdb.Incr(formattedTime)
-	// 		}
-	// 	}
-	// } else if max-lastPrice > Atrs[k]*2 {
-	// 	fmt.Println(k, "下跌出大事了")
-	// 	if !checkPosition(client, k) {
-	// 		if err = placeOrder(client, k, futures.SideTypeSell, futures.PositionSideTypeShort); err == nil {
-	// 			ledisdb.Incr([]byte(formattedTime))
-	// 		}
-	// 	}
-	// }
 }
 
 // 检测当前是否有持仓
