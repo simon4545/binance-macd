@@ -109,7 +109,7 @@ func main() {
 }
 
 func fetchATR(symbol string) {
-	klines, err := client.NewKlinesService().Symbol(symbol).Interval("1h").Limit(16).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval("1h").Limit(12).Do(context.Background())
 	if err != nil {
 		log.Printf("Error fetching ATR for %s: %v", symbol, err)
 		return
