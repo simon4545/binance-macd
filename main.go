@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/remeh/sizedwaitgroup"
 	"gopkg.in/yaml.v3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -21,7 +22,6 @@ type Config struct {
 	APIKey     string             `yaml:"api_key"`
 	APISecret  string             `yaml:"api_secret"`
 	Bet        map[string]float64 `yaml:"bet"`
-	Step       map[string]float64 `yaml:"step"`
 	AtrMultier map[string]float64 `yaml:"atrmultier"`
 }
 
@@ -45,7 +45,7 @@ type Cache struct {
 
 func init() {
 	// Load config from YAML
-	configFile, err := os.ReadFile("config.yaml")
+	configFile, err := os.ReadFile("w.yaml")
 	if err != nil {
 		log.Fatalf("Error reading config file: %v", err)
 	}
@@ -211,9 +211,15 @@ func placeOrder(symbol, side string, price float64) {
 func updateATR() {
 	for {
 		symbols := keys(cfg.Bet)
-		for _, symbol := range symbols {
-			fetchATR(symbol)
+		swg := sizedwaitgroup.New(6)
+		for _, s := range symbols {
+			swg.Add()
+			go func(pair string) {
+				defer swg.Done()
+				fetchATR(pair)
+			}(s)
 		}
+		swg.Wait()
 		time.Sleep(5 * time.Minute)
 	}
 }
