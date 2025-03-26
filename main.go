@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
@@ -31,6 +32,7 @@ var (
 	positonOrder   = map[string]bool{}
 	db             *gorm.DB
 	client         *futures.Client
+	delock         sync.Mutex
 	LotSizeMap     = make(map[string]float64)
 	PriceFilterMap = make(map[string]float64)
 	FeeMap         = make(map[string]float64)
@@ -44,6 +46,7 @@ type Cache struct {
 }
 
 func init() {
+
 	// Load config from YAML
 	configFile, err := os.ReadFile("w.yaml")
 	if err != nil {
@@ -107,7 +110,14 @@ func main() {
 	GetSymbolInfo(client)
 	listenWebSocket()
 }
-
+func setAtr(symbol string, atr float64, lastClose float64) {
+	delock.Lock()
+	defer delock.Unlock()
+	atrValues[symbol] = atr * cfg.AtrMultier[symbol]
+	atrValues[symbol] = math.Max(0.015*lastClose, atrValues[symbol])
+	atrPercent := atrValues[symbol] * 100 / lastClose
+	log.Printf("%s ATR: %.3f %.2f%%\n", symbol, atrValues[symbol], atrPercent)
+}
 func fetchATR(symbol string) {
 	klines, err := client.NewKlinesService().Symbol(symbol).Interval("1h").Limit(12).Do(context.Background())
 	if err != nil {
@@ -127,11 +137,8 @@ func fetchATR(symbol string) {
 	}
 
 	atr := sum(trs) / float64(len(trs))
-	atrValues[symbol] = atr * cfg.AtrMultier[symbol]
 	lastClose := parseFloat(klines[len(klines)-1].Close)
-	atrValues[symbol] = math.Max(0.015*lastClose, atrValues[symbol])
-	atrPercent := atrValues[symbol] * 100 / lastClose
-	log.Printf("%s ATR: %.3f %.2f%%\n", symbol, atrValues[symbol], atrPercent)
+	setAtr(symbol, atr, lastClose)
 }
 
 func listenWebSocket() {
@@ -167,13 +174,17 @@ func listenWebSocket() {
 
 func placeOrder(symbol, side string, price float64) {
 	var cache Cache
+	var hourCount int64
 	if err := db.Where("key = ? AND created_at >= DATETIME('now', '-1 hours') ", symbol).First(&cache).Error; err == nil {
 		return
 	}
-
+	db.Where("created_at >= DATETIME('now', '-1 hours') ").Count(&hourCount)
+	if hourCount > 6 {
+		return
+	}
 	quantity := roundStepSize(cfg.Bet[symbol]/price, LotSizeMap[symbol])
 	order, err := client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(side)).NewClientOrderID(RandStr("SIM-", 12)).
-		Type(futures.OrderTypeMarket).Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
+		Type(futures.OrderTypeMarket).Quantity(fmt.Sprintf("%f", quantity)).NewOrderResponseType(futures.NewOrderRespTypeRESULT).Do(context.Background())
 	if err != nil {
 		log.Printf("Error placing order: %v", err)
 		return
@@ -181,7 +192,7 @@ func placeOrder(symbol, side string, price float64) {
 	log.Printf("已开仓: %s %s, %+v\n", symbol, side, order)
 
 	db.Create(&Cache{Key: symbol, Value: true})
-
+	price = parseFloat(order.AvgPrice)
 	stopLoss := price * 0.98
 	if side == "SELL" {
 		stopLoss = price * 1.02
