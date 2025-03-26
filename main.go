@@ -151,8 +151,8 @@ func listenWebSocket() {
 		openPrice := parseFloat(event.Kline.Open)
 		closePrice := parseFloat(event.Kline.Close)
 		priceChange := closePrice - openPrice
-		atrValues[event.Symbol] = math.Max(0.012*openPrice, atrValues[event.Symbol])
-		if atrValues[event.Symbol] > 0 && math.Abs(priceChange) > atrValues[event.Symbol] && !positonOrder[event.Symbol] {
+		atrValue := math.Max(0.012*openPrice, atrValues[event.Symbol])
+		if atrValue > 0 && math.Abs(priceChange) > atrValue && !positonOrder[event.Symbol] {
 			direction := "BUY"
 			if priceChange < 0 {
 				direction = "SELL"
@@ -194,11 +194,13 @@ func placeOrder(symbol, side string, price float64) {
 	db.Create(&Cache{Key: symbol, Value: true})
 	price = parseFloat(order.AvgPrice)
 	stopLoss := price * 0.98
+	_side := "SELL"
 	if side == "SELL" {
 		stopLoss = price * 1.02
+		_side = "BUY"
 	}
 	stopLoss = roundStepSize(stopLoss, PriceFilterMap[symbol])
-	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(side)).Type(futures.OrderTypeStopMarket).
+	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeStopMarket).
 		NewClientOrderID(RandStr("SIMC-", 12)).StopPrice(fmt.Sprintf("%f", stopLoss)).Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
 	if err != nil {
 		log.Printf("Error setting stop loss: %v", err)
@@ -211,7 +213,7 @@ func placeOrder(symbol, side string, price float64) {
 		takeProfit = price - 0.5*atrValues[symbol]
 	}
 	takeProfit = roundStepSize(takeProfit, PriceFilterMap[symbol])
-	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(side)).Type(futures.OrderTypeTrailingStopMarket).
+	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).
 		NewClientOrderID(RandStr("SIMC-", 12)).ActivationPrice(fmt.Sprintf("%f", takeProfit)).CallbackRate("1").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
 	if err != nil {
 		log.Printf("Error setting take profit: %v", err)
