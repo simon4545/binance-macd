@@ -119,7 +119,7 @@ func setAtr(symbol string, atr float64, lastClose float64) {
 	log.Printf("%s ATR: %.3f %.2f%%\n", symbol, atrValues[symbol], atrPercent)
 }
 func fetchATR(symbol string) {
-	klines, err := client.NewKlinesService().Symbol(symbol).Interval("1h").Limit(12).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval("2h").Limit(12).Do(context.Background())
 	if err != nil {
 		log.Printf("Error fetching ATR for %s: %v", symbol, err)
 		return
@@ -140,12 +140,31 @@ func fetchATR(symbol string) {
 	lastClose := parseFloat(klines[len(klines)-1].Close)
 	setAtr(symbol, atr, lastClose)
 }
+func hasPumped(symbol string) bool {
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval("15m").Limit(60).Do(context.Background())
+	if err != nil {
+		log.Printf("Error fetching ATR for %s: %v", symbol, err)
+		return true
+	}
+	if len(klines) < 10 {
+		return true
+	}
+	var closes []float64
+	for i := 1; i < len(klines); i++ {
+		if klines[i].CloseTime > time.Now().UnixMilli() {
+			continue
+		}
+		close := parseFloat(klines[i].Close)
+		closes = append(closes, close)
+	}
 
+	return closes[len(closes)-1]/closes[0] > 0.03
+}
 func listenWebSocket() {
 	symbols := keys(cfg.Bet)
 	symbolsWithInterval := make(map[string]string)
 	for _, symbol := range symbols {
-		symbolsWithInterval[symbol] = "5m"
+		symbolsWithInterval[symbol] = "15m"
 	}
 	doneC, stopC, err := futures.WsCombinedKlineServe(symbolsWithInterval, func(event *futures.WsKlineEvent) {
 		openPrice := parseFloat(event.Kline.Open)
@@ -182,6 +201,10 @@ func placeOrder(symbol, side string, price float64) {
 	if hourCount > 6 {
 		return
 	}
+	db.Create(&Cache{Key: symbol, Value: true})
+	if hasPumped(symbol) {
+		return
+	}
 	quantity := roundStepSize(cfg.Bet[symbol]/price, LotSizeMap[symbol])
 	order, err := client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(side)).NewClientOrderID(RandStr("SIM-", 12)).
 		Type(futures.OrderTypeMarket).Quantity(fmt.Sprintf("%f", quantity)).NewOrderResponseType(futures.NewOrderRespTypeRESULT).Do(context.Background())
@@ -191,7 +214,6 @@ func placeOrder(symbol, side string, price float64) {
 	}
 	log.Printf("已开仓: %s %s, %+v\n", symbol, side, order)
 
-	db.Create(&Cache{Key: symbol, Value: true})
 	price = parseFloat(order.AvgPrice)
 	stopLoss := price * 0.99
 	_side := "SELL"
@@ -261,7 +283,7 @@ func RandStr(prefix string, length int) string {
 	for i := range b {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
-	str := fmt.Sprintf("%s-%s", prefix, string(b))
+	str := fmt.Sprintf("%s%s", prefix, string(b))
 	return str
 }
 func keys(m map[string]float64) []string {

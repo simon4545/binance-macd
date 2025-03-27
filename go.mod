@@ -1,6 +1,8 @@
 module github.com/simon4545/binance-macd
 
-go 1.22.0
+go 1.23.2
+
+toolchain go1.23.7
 
 require (
 	github.com/adshao/go-binance/v2 v2.5.0
@@ -16,6 +18,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/markcheno/go-talib v0.0.0-20250114000313-ec55a20c902f // indirect
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
