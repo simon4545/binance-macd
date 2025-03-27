@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
-	"github.com/markcheno/go-talib"
 	"github.com/remeh/sizedwaitgroup"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
@@ -106,6 +105,7 @@ func GetSymbolInfo(client *futures.Client) {
 }
 
 func main() {
+	hasPumped("BTCUSDT")
 	go wsUser(client)
 	go wsUserReConnect()
 	go updateATR()
@@ -165,7 +165,7 @@ func hasPumped(symbol string) bool {
 		highs = append(closes, high)
 		lows = append(closes, low)
 	}
-	ema20 := talib.Ema(closes, 20)
+	ema20 := CalculateEMA(closes, 20)
 	ema20 = lo.Slice(ema20, 20, -4)
 	highs = lo.Slice(highs, 20, -4)
 	lows = lo.Slice(lows, 20, -4)
@@ -361,4 +361,37 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 			client.NewCancelAllOpenOrdersService().Symbol(symbol).Do(context.Background())
 		}
 	}
+}
+
+// CalculateEMA 计算EMA
+// prices: 价格序列，从旧到新排列
+// period: 周期，如20
+func CalculateEMA(prices []float64, period int) []float64 {
+	if len(prices) < period {
+		return nil
+	}
+
+	ema := make([]float64, len(prices))
+	multiplier := 2.0 / float64(period+1)
+
+	// 第一个EMA值是简单移动平均(SMA)
+	sma := 0.0
+	for i := 0; i < period; i++ {
+		sma += prices[i]
+	}
+	sma /= float64(period)
+	ema[period-1] = sma
+
+	// 计算后续的EMA值
+	for i := period; i < len(prices); i++ {
+		ema[i] = (prices[i]-ema[i-1])*multiplier + ema[i-1]
+	}
+
+	return ema[period-1:]
+}
+
+// Round 四舍五入到指定小数位
+func Round(val float64, precision int) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
 }
