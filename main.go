@@ -193,10 +193,10 @@ func placeOrder(symbol, side string, price float64) {
 
 	db.Create(&Cache{Key: symbol, Value: true})
 	price = parseFloat(order.AvgPrice)
-	stopLoss := price * 0.98
+	stopLoss := price * 0.99
 	_side := "SELL"
 	if side == "SELL" {
-		stopLoss = price * 1.02
+		stopLoss = price * 1.01
 		_side = "BUY"
 	}
 	stopLoss = roundStepSize(stopLoss, PriceFilterMap[symbol])
@@ -208,13 +208,13 @@ func placeOrder(symbol, side string, price float64) {
 	}
 	log.Printf("止损设置: %f %f\n", price, stopLoss)
 
-	takeProfit := price + 0.5*atrValues[symbol]
+	takeProfit := price + 0.3*atrValues[symbol]
 	if side == "SELL" {
-		takeProfit = price - 0.5*atrValues[symbol]
+		takeProfit = price - 0.3*atrValues[symbol]
 	}
 	takeProfit = roundStepSize(takeProfit, PriceFilterMap[symbol])
 	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).
-		NewClientOrderID(RandStr("SIMC-", 12)).ActivationPrice(fmt.Sprintf("%f", takeProfit)).CallbackRate("1").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
+		NewClientOrderID(RandStr("SIMC-", 12)).ActivationPrice(fmt.Sprintf("%f", takeProfit)).CallbackRate("0.5").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
 	if err != nil {
 		log.Printf("Error setting take profit: %v", err)
 		return
@@ -315,6 +315,7 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 	if message.Status == "FILLED" {
 		// quantity, _ := strconv.ParseFloat(message.Volume, 64)
 		symbol := message.Symbol
+		log.Printf("订单回调: %+v\n", message)
 		if strings.HasPrefix(message.ClientOrderID, "SIMC-") {
 			positonOrder[symbol] = false
 			client.NewCancelAllOpenOrdersService().Symbol(symbol).Do(context.Background())
