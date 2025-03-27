@@ -15,6 +15,7 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/markcheno/go-talib"
 	"github.com/remeh/sizedwaitgroup"
+	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -151,15 +152,31 @@ func hasPumped(symbol string) bool {
 		return true
 	}
 	var closes []float64
+	var highs []float64
+	var lows []float64
 	for i := 1; i < len(klines); i++ {
 		if klines[i].CloseTime > time.Now().UnixMilli() {
 			continue
 		}
 		close := parseFloat(klines[i].Close)
+		high := parseFloat(klines[i].High)
+		low := parseFloat(klines[i].Low)
 		closes = append(closes, close)
+		highs = append(closes, high)
+		lows = append(closes, low)
 	}
 	ema20 := talib.Ema(closes, 20)
-	return closes[len(closes)-1]/closes[0] > 0.03
+	ema20 = lo.Slice(ema20, 20, -4)
+	highs = lo.Slice(highs, 20, -4)
+	lows = lo.Slice(lows, 20, -4)
+
+	even := lo.Filter(lows, func(x float64, i int) bool {
+		if ema20[i] != 0 {
+			return false
+		}
+		return ema20[i] <= highs[i] && ema20[i] >= lows[i]
+	})
+	return len(even) > 3
 }
 func listenWebSocket() {
 	symbols := keys(cfg.Bet)

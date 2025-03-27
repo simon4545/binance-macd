@@ -21,6 +21,8 @@ require (
 	github.com/markcheno/go-talib v0.0.0-20250114000313-ec55a20c902f // indirect
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/samber/lo v1.49.1 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 )
