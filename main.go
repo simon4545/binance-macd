@@ -105,7 +105,7 @@ func GetSymbolInfo(client *futures.Client) {
 }
 
 func main() {
-	hasPumped("BTCUSDT")
+	// hasPumped("BTCUSDT")
 	go wsUser(client)
 	go wsUserReConnect()
 	go updateATR()
@@ -154,7 +154,7 @@ func hasPumped(symbol string) bool {
 	var closes []float64
 	var highs []float64
 	var lows []float64
-	for i := 1; i < len(klines); i++ {
+	for i := 0; i < len(klines); i++ {
 		if klines[i].CloseTime > time.Now().UnixMilli() {
 			continue
 		}
@@ -162,21 +162,22 @@ func hasPumped(symbol string) bool {
 		high := parseFloat(klines[i].High)
 		low := parseFloat(klines[i].Low)
 		closes = append(closes, close)
-		highs = append(closes, high)
-		lows = append(closes, low)
+		highs = append(highs, high)
+		lows = append(lows, low)
 	}
 	ema20 := CalculateEMA(closes, 20)
-	ema20 = lo.Slice(ema20, 20, -4)
-	highs = lo.Slice(highs, 20, -4)
-	lows = lo.Slice(lows, 20, -4)
+	ema20 = lo.Subset(ema20, -8, 8)
+	highs = lo.Subset(highs, -8, 8)
+	lows = lo.Subset(lows, -8, 8)
 
-	even := lo.Filter(lows, func(x float64, i int) bool {
-		if ema20[i] != 0 {
+	even := lo.Filter(ema20, func(x float64, i int) bool {
+		if ema20[i] == 0 {
 			return false
 		}
-		return ema20[i] <= highs[i] && ema20[i] >= lows[i]
+		return x <= highs[i] && x >= lows[i]
 	})
-	return len(even) > 3
+	fmt.Println("ema20 line count", len(even))
+	return len(even) < 3
 }
 func listenWebSocket() {
 	symbols := keys(cfg.Bet)
@@ -233,10 +234,10 @@ func placeOrder(symbol, side string, price float64) {
 	log.Printf("已开仓: %s %s, %+v\n", symbol, side, order)
 
 	price = parseFloat(order.AvgPrice)
-	stopLoss := price * 0.99
+	stopLoss := price * 0.97
 	_side := "SELL"
 	if side == "SELL" {
-		stopLoss = price * 1.01
+		stopLoss = price * 1.03
 		_side = "BUY"
 	}
 	stopLoss = roundStepSize(stopLoss, PriceFilterMap[symbol])
@@ -248,13 +249,13 @@ func placeOrder(symbol, side string, price float64) {
 	}
 	log.Printf("止损设置: %f %f\n", price, stopLoss)
 
-	takeProfit := price + 0.3*atrValues[symbol]
+	takeProfit := price + 0.5*atrValues[symbol]
 	if side == "SELL" {
-		takeProfit = price - 0.3*atrValues[symbol]
+		takeProfit = price - 0.5*atrValues[symbol]
 	}
 	takeProfit = roundStepSize(takeProfit, PriceFilterMap[symbol])
 	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).
-		NewClientOrderID(RandStr("SIMC-", 12)).ActivationPrice(fmt.Sprintf("%f", takeProfit)).CallbackRate("0.5").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
+		NewClientOrderID(RandStr("SIMC-", 12)).ActivationPrice(fmt.Sprintf("%f", takeProfit)).CallbackRate("1").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
 	if err != nil {
 		log.Printf("Error setting take profit: %v", err)
 		return
@@ -387,7 +388,8 @@ func CalculateEMA(prices []float64, period int) []float64 {
 		ema[i] = (prices[i]-ema[i-1])*multiplier + ema[i-1]
 	}
 
-	return ema[period-1:]
+	return ema
+	// return ema[period-1:]
 }
 
 // Round 四舍五入到指定小数位
