@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/markcheno/go-talib"
 	"github.com/remeh/sizedwaitgroup"
 	"gopkg.in/yaml.v3"
 	"gorm.io/driver/sqlite"
@@ -157,7 +158,7 @@ func hasPumped(symbol string) bool {
 		close := parseFloat(klines[i].Close)
 		closes = append(closes, close)
 	}
-
+	ema20 := talib.Ema(closes, 20)
 	return closes[len(closes)-1]/closes[0] > 0.03
 }
 func listenWebSocket() {
