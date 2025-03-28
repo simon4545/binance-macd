@@ -6,7 +6,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
-	"github.com/remeh/sizedwaitgroup"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 	"gorm.io/driver/sqlite"
@@ -47,36 +45,8 @@ type Cache struct {
 	Value bool
 }
 
-var weightMaxPerMinute int
-var usedWeight int
-
-// transport binance transport client
-type transport struct {
-	UnderlyingTransport http.RoundTripper
-}
-
-// RoundTrip implement http roundtrip
-func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	startTime := time.Now()
-	resp, err := t.UnderlyingTransport.RoundTrip(req)
-	if resp != nil && resp.Header != nil {
-		usedWeight, _ = strconv.Atoi(resp.Header.Get("X-Mbx-Used-Weight-1m"))
-		//如果请求次数超过900，开始打印日志
-		// if usedWeight > 900 {
-		log.Println("request count:::", usedWeight)
-		// }
-	}
-	duration := time.Since(startTime)
-	log.Printf("Request to %s took %v", req.URL, duration)
-	return resp, err
-}
-func CheckRateLimit() {
-	if usedWeight > weightMaxPerMinute {
-		now := time.Now()
-		time.Sleep(time.Until(now.Add(time.Duration(60-now.Second()) * time.Second)))
-	}
-}
 func init() {
+	// Load config from YAML
 	configFile, err := os.ReadFile("w.yaml")
 	if err != nil {
 		log.Fatalf("Error reading config file: %v", err)
@@ -91,6 +61,7 @@ func init() {
 			cfg.AtrMultier[symbol] = 1.0
 		}
 	}
+	// Initialize SQLite database
 	var errDB error
 	db, errDB = gorm.Open(sqlite.Open("cache.db?_loc=Asia/Shanghai"), &gorm.Config{})
 	if errDB != nil {
@@ -98,11 +69,12 @@ func init() {
 	}
 	db.AutoMigrate(&Cache{})
 
+	// Initialize Binance client
 	client = futures.NewClient(cfg.APIKey, cfg.APISecret)
 	futures.WebsocketKeepalive = true
+	// binance.WebsocketTimeout = time.Second * 1
+	//校准时间
 	client.NewSetServerTimeService().Do(context.Background())
-	c := http.Client{Transport: &transport{UnderlyingTransport: http.DefaultTransport}}
-	client.HTTPClient = &c
 }
 
 func GetSymbolInfo(client *futures.Client) {
@@ -137,7 +109,8 @@ func GetSymbolInfo(client *futures.Client) {
 func main() {
 	go wsUser(client)
 	go wsUserReConnect()
-	go updateATR()
+	go UpdateATR()
+	updateATR()
 	GetSymbolInfo(client)
 	listenWebSocket()
 }
@@ -150,7 +123,7 @@ func setAtr(symbol string, atr float64, lastClose float64) {
 	log.Printf("%s ATR: %.3f %.2f%%\n", symbol, atrValues[symbol], atrPercent)
 }
 func fetchATR(symbol string) {
-	klines, err := client.NewKlinesService().Symbol(symbol).Interval("2h").Limit(14).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval("2h").Limit(16).Do(context.Background())
 	if err != nil {
 		log.Printf("Error fetching ATR for %s: %v", symbol, err)
 		return
@@ -171,6 +144,7 @@ func fetchATR(symbol string) {
 	lastClose := parseFloat(klines[len(klines)-1].Close)
 	setAtr(symbol, atr, lastClose)
 }
+
 func hasPumped(symbol string) bool {
 	klines, err := client.NewKlinesService().Symbol(symbol).Interval("15m").Limit(60).Do(context.Background())
 	if err != nil {
@@ -183,13 +157,13 @@ func hasPumped(symbol string) bool {
 	var closes []float64
 	var highs []float64
 	var lows []float64
-	for _, kline := range klines {
-		if kline.CloseTime > time.Now().UnixMilli() {
+	for i := 0; i < len(klines); i++ {
+		if klines[i].CloseTime > time.Now().UnixMilli() {
 			continue
 		}
-		close := parseFloat(kline.Close)
-		high := parseFloat(kline.High)
-		low := parseFloat(kline.Low)
+		close := parseFloat(klines[i].Close)
+		high := parseFloat(klines[i].High)
+		low := parseFloat(klines[i].Low)
 		closes = append(closes, close)
 		highs = append(highs, high)
 		lows = append(lows, low)
@@ -208,6 +182,7 @@ func hasPumped(symbol string) bool {
 	fmt.Println("ema20 line count", len(even))
 	return len(even) < 3
 }
+
 func listenWebSocket() {
 	symbols := keys(cfg.Bet)
 	symbolsWithInterval := make(map[string]string)
@@ -245,12 +220,15 @@ func placeOrder(symbol, side string, price float64) {
 	if err := db.Where("key = ? AND created_at >= DATETIME('now', '-1 hours') ", symbol).First(&cache).Error; err == nil {
 		return
 	}
+
 	db.Where("created_at >= DATETIME('now', '-1 hours') ").Count(&hourCount)
 	if hourCount > 6 {
 		return
 	}
+
 	db.Create(&Cache{Key: symbol, Value: true})
 	if hasPumped(symbol) {
+		fmt.Println(symbol, "价格已不正常不处理")
 		return
 	}
 	quantity := roundStepSize(cfg.Bet[symbol]/price, LotSizeMap[symbol])
@@ -263,10 +241,10 @@ func placeOrder(symbol, side string, price float64) {
 	log.Printf("已开仓: %s %s, %+v\n", symbol, side, order)
 
 	price = parseFloat(order.AvgPrice)
-	stopLoss := price * 0.97
+	stopLoss := price * 0.975
 	_side := "SELL"
 	if side == "SELL" {
-		stopLoss = price * 1.03
+		stopLoss = price * 1.025
 		_side = "BUY"
 	}
 	stopLoss = roundStepSize(stopLoss, PriceFilterMap[symbol])
@@ -278,9 +256,9 @@ func placeOrder(symbol, side string, price float64) {
 	}
 	log.Printf("止损设置: %f %f\n", price, stopLoss)
 
-	takeProfit := price + 0.5*atrValues[symbol]
+	takeProfit := price + 0.3*atrValues[symbol]
 	if side == "SELL" {
-		takeProfit = price - 0.5*atrValues[symbol]
+		takeProfit = price - 0.3*atrValues[symbol]
 	}
 	takeProfit = roundStepSize(takeProfit, PriceFilterMap[symbol])
 	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).
@@ -292,18 +270,29 @@ func placeOrder(symbol, side string, price float64) {
 	log.Printf("止盈设置: %f %f %f\n", price, atrValues[symbol], takeProfit)
 }
 func updateATR() {
+	symbols := keys(cfg.Bet)
+	for _, symbol := range symbols {
+		fetchATR(symbol)
+	}
+}
+func UpdateATR() {
 	for {
-		symbols := keys(cfg.Bet)
-		swg := sizedwaitgroup.New(6)
-		for _, s := range symbols {
-			swg.Add()
-			go func(pair string) {
-				defer swg.Done()
-				fetchATR(pair)
-			}(s)
-		}
-		swg.Wait()
 		time.Sleep(5 * time.Minute)
+		updateATR()
+		// symbols := keys(cfg.Bet)
+		// swg := sizedwaitgroup.New(4)
+		// for _, s := range symbols {
+		// 	swg.Add()
+		// 	go func(pair string) {
+		// 		defer swg.Done()
+		// 		fetchATR(pair)
+		// 		time.Sleep(100 * time.Millisecond)
+		// 	}(s)
+		// }
+		// swg.Wait()
+		// for _, symbol := range symbols {
+		// 	fetchATR(symbol)
+		// }
 	}
 }
 
@@ -331,7 +320,7 @@ func RandStr(prefix string, length int) string {
 	for i := range b {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
-	str := fmt.Sprintf("%s%s", prefix, string(b))
+	str := fmt.Sprintf("%s-%s", prefix, string(b))
 	return str
 }
 func keys(m map[string]float64) []string {
@@ -355,13 +344,13 @@ func getUserStream(client *futures.Client) string {
 func wsUser(client *futures.Client) {
 	listenKey := getUserStream(client)
 	errHandler := func(err error) {
-		fmt.Println("ws user error:", err)
+		fmt.Println("ws1 user error:", err)
 	}
 	var err error
 	var doneC chan struct{}
 	doneC, wsUserStop, err = futures.WsUserDataServe(listenKey, userWsHandler, errHandler)
 	if err != nil {
-		fmt.Println("ws user error:", err)
+		fmt.Println("ws2 user error:", err)
 		return
 	}
 	<-doneC
@@ -385,7 +374,6 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 	if message.Status == "FILLED" {
 		// quantity, _ := strconv.ParseFloat(message.Volume, 64)
 		symbol := message.Symbol
-		log.Printf("订单回调: %+v\n", message)
 		if strings.HasPrefix(message.ClientOrderID, "SIMC-") {
 			positonOrder[symbol] = false
 			client.NewCancelAllOpenOrdersService().Symbol(symbol).Do(context.Background())
@@ -393,6 +381,9 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 	}
 }
 
+// CalculateEMA 计算EMA
+// prices: 价格序列，从旧到新排列
+// period: 周期，如20
 func CalculateEMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return nil
