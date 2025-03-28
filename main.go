@@ -47,8 +47,6 @@ type Cache struct {
 }
 
 func init() {
-
-	// Load config from YAML
 	configFile, err := os.ReadFile("w.yaml")
 	if err != nil {
 		log.Fatalf("Error reading config file: %v", err)
@@ -63,7 +61,6 @@ func init() {
 			cfg.AtrMultier[symbol] = 1.0
 		}
 	}
-	// Initialize SQLite database
 	var errDB error
 	db, errDB = gorm.Open(sqlite.Open("cache.db?_loc=Asia/Shanghai"), &gorm.Config{})
 	if errDB != nil {
@@ -71,7 +68,6 @@ func init() {
 	}
 	db.AutoMigrate(&Cache{})
 
-	// Initialize Binance client
 	client = futures.NewClient(cfg.APIKey, cfg.APISecret)
 }
 
@@ -105,7 +101,6 @@ func GetSymbolInfo(client *futures.Client) {
 }
 
 func main() {
-	// hasPumped("BTCUSDT")
 	go wsUser(client)
 	go wsUserReConnect()
 	go updateATR()
@@ -154,13 +149,13 @@ func hasPumped(symbol string) bool {
 	var closes []float64
 	var highs []float64
 	var lows []float64
-	for i := 0; i < len(klines); i++ {
-		if klines[i].CloseTime > time.Now().UnixMilli() {
+	for _, kline := range klines {
+		if kline.CloseTime > time.Now().UnixMilli() {
 			continue
 		}
-		close := parseFloat(klines[i].Close)
-		high := parseFloat(klines[i].High)
-		low := parseFloat(klines[i].Low)
+		close := parseFloat(kline.Close)
+		high := parseFloat(kline.High)
+		low := parseFloat(kline.Low)
 		closes = append(closes, close)
 		highs = append(highs, high)
 		lows = append(lows, low)
@@ -364,9 +359,6 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 	}
 }
 
-// CalculateEMA 计算EMA
-// prices: 价格序列，从旧到新排列
-// period: 周期，如20
 func CalculateEMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return nil
