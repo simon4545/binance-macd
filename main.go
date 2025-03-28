@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -46,6 +47,35 @@ type Cache struct {
 	Value bool
 }
 
+var weightMaxPerMinute int
+var usedWeight int
+
+// transport binance transport client
+type transport struct {
+	UnderlyingTransport http.RoundTripper
+}
+
+// RoundTrip implement http roundtrip
+func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	startTime := time.Now()
+	resp, err := t.UnderlyingTransport.RoundTrip(req)
+	if resp != nil && resp.Header != nil {
+		usedWeight, _ = strconv.Atoi(resp.Header.Get("X-Mbx-Used-Weight-1m"))
+		//如果请求次数超过900，开始打印日志
+		// if usedWeight > 900 {
+		log.Println("request count:::", usedWeight)
+		// }
+	}
+	duration := time.Since(startTime)
+	log.Printf("Request to %s took %v", req.URL, duration)
+	return resp, err
+}
+func CheckRateLimit() {
+	if usedWeight > weightMaxPerMinute {
+		now := time.Now()
+		time.Sleep(time.Until(now.Add(time.Duration(60-now.Second()) * time.Second)))
+	}
+}
 func init() {
 	configFile, err := os.ReadFile("w.yaml")
 	if err != nil {
@@ -69,6 +99,10 @@ func init() {
 	db.AutoMigrate(&Cache{})
 
 	client = futures.NewClient(cfg.APIKey, cfg.APISecret)
+	futures.WebsocketKeepalive = true
+	client.NewSetServerTimeService().Do(context.Background())
+	c := http.Client{Transport: &transport{UnderlyingTransport: http.DefaultTransport}}
+	client.HTTPClient = &c
 }
 
 func GetSymbolInfo(client *futures.Client) {
@@ -116,7 +150,7 @@ func setAtr(symbol string, atr float64, lastClose float64) {
 	log.Printf("%s ATR: %.3f %.2f%%\n", symbol, atrValues[symbol], atrPercent)
 }
 func fetchATR(symbol string) {
-	klines, err := client.NewKlinesService().Symbol(symbol).Interval("2h").Limit(12).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval("2h").Limit(14).Do(context.Background())
 	if err != nil {
 		log.Printf("Error fetching ATR for %s: %v", symbol, err)
 		return
