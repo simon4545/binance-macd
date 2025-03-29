@@ -19,6 +19,11 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	longPriod  = "30m"
+	shortPriod = "5m"
+)
+
 type Config struct {
 	APIKey     string             `yaml:"api_key"`
 	APISecret  string             `yaml:"api_secret"`
@@ -118,12 +123,12 @@ func setAtr(symbol string, atr float64, lastClose float64) {
 	delock.Lock()
 	defer delock.Unlock()
 	atrValues[symbol] = atr * cfg.AtrMultier[symbol]
-	atrValues[symbol] = math.Max(0.015*lastClose, atrValues[symbol])
+	atrValues[symbol] = math.Max(0.01*lastClose, atrValues[symbol])
 	atrPercent := atrValues[symbol] * 100 / lastClose
 	log.Printf("%s ATR: %.3f %.2f%%\n", symbol, atrValues[symbol], atrPercent)
 }
 func fetchATR(symbol string) {
-	klines, err := client.NewKlinesService().Symbol(symbol).Interval("2h").Limit(16).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval(longPriod).Limit(16).Do(context.Background())
 	if err != nil {
 		log.Printf("Error fetching ATR for %s: %v", symbol, err)
 		return
@@ -146,12 +151,12 @@ func fetchATR(symbol string) {
 }
 
 func hasPumped(symbol string, side string, closePrice float64) bool {
-	klines, err := client.NewKlinesService().Symbol(symbol).Interval("15m").Limit(60).Do(context.Background())
+	klines, err := client.NewKlinesService().Symbol(symbol).Interval(shortPriod).Limit(60).Do(context.Background())
 	if err != nil {
 		log.Printf("Error fetching ATR for %s: %v", symbol, err)
 		return true
 	}
-	if len(klines) < 10 {
+	if len(klines) < 21 {
 		return true
 	}
 	var closes []float64
@@ -194,7 +199,7 @@ func listenWebSocket() {
 	symbols := keys(cfg.Bet)
 	symbolsWithInterval := make(map[string]string)
 	for _, symbol := range symbols {
-		symbolsWithInterval[symbol] = "15m"
+		symbolsWithInterval[symbol] = shortPriod
 	}
 	doneC, stopC, err := futures.WsCombinedKlineServe(symbolsWithInterval, func(event *futures.WsKlineEvent) {
 		if !event.Kline.IsFinal {
