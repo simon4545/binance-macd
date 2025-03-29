@@ -7,13 +7,13 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
-	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -145,7 +145,7 @@ func fetchATR(symbol string) {
 	setAtr(symbol, atr, lastClose)
 }
 
-func hasPumped(symbol string) bool {
+func hasPumped(symbol string, side string, closePrice float64) bool {
 	klines, err := client.NewKlinesService().Symbol(symbol).Interval("15m").Limit(60).Do(context.Background())
 	if err != nil {
 		log.Printf("Error fetching ATR for %s: %v", symbol, err)
@@ -168,19 +168,26 @@ func hasPumped(symbol string) bool {
 		highs = append(highs, high)
 		lows = append(lows, low)
 	}
+	if side == "BUY" {
+		lowest := slices.Min(closes[len(closes)-8:])
+		if math.Abs(closePrice-lowest) > atrValues[symbol]*3 {
+			return true
+		}
+	}
+	if side == "SELL" {
+		highest := slices.Max(closes[len(closes)-8:])
+		if math.Abs(highest-closePrice) > atrValues[symbol]*3 {
+			return true
+		}
+	}
 	ema20 := CalculateEMA(closes, 20)
-	ema20 = lo.Subset(ema20, -8, 8)
-	highs = lo.Subset(highs, -8, 8)
-	lows = lo.Subset(lows, -8, 8)
-
-	even := lo.Filter(ema20, func(x float64, i int) bool {
-		if ema20[i] == 0 {
+	for i := len(ema20) - 8; i < len(ema20); i++ {
+		x := ema20[i]
+		if x <= highs[i] && x >= lows[i] {
 			return false
 		}
-		return x <= highs[i] && x >= lows[i]
-	})
-	fmt.Println("ema20 line count", len(even))
-	return len(even) < 3
+	}
+	return true
 }
 
 func listenWebSocket() {
@@ -190,6 +197,9 @@ func listenWebSocket() {
 		symbolsWithInterval[symbol] = "15m"
 	}
 	doneC, stopC, err := futures.WsCombinedKlineServe(symbolsWithInterval, func(event *futures.WsKlineEvent) {
+		if !event.Kline.IsFinal {
+			return
+		}
 		openPrice := parseFloat(event.Kline.Open)
 		closePrice := parseFloat(event.Kline.Close)
 		priceChange := closePrice - openPrice
@@ -222,15 +232,15 @@ func placeOrder(symbol, side string, price float64) {
 	}
 
 	db.Where("created_at >= DATETIME('now', '-1 hours') ").Count(&hourCount)
-	if hourCount > 6 {
+	if hourCount > 4 {
 		return
 	}
 
-	db.Create(&Cache{Key: symbol, Value: true})
-	if hasPumped(symbol) {
+	if hasPumped(symbol, side, price) {
 		fmt.Println(symbol, "价格已不正常不处理")
 		return
 	}
+	db.Create(&Cache{Key: symbol, Value: true})
 	quantity := roundStepSize(cfg.Bet[symbol]/price, LotSizeMap[symbol])
 	order, err := client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(side)).NewClientOrderID(RandStr("SIM-", 12)).
 		Type(futures.OrderTypeMarket).Quantity(fmt.Sprintf("%f", quantity)).NewOrderResponseType(futures.NewOrderRespTypeRESULT).Do(context.Background())
@@ -248,7 +258,7 @@ func placeOrder(symbol, side string, price float64) {
 		_side = "BUY"
 	}
 	stopLoss = roundStepSize(stopLoss, PriceFilterMap[symbol])
-	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeStopMarket).
+	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeStopMarket).ClosePosition(true).
 		NewClientOrderID(RandStr("SIMC-", 12)).StopPrice(fmt.Sprintf("%f", stopLoss)).Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
 	if err != nil {
 		log.Printf("Error setting stop loss: %v", err)
@@ -261,7 +271,7 @@ func placeOrder(symbol, side string, price float64) {
 		takeProfit = price - 0.3*atrValues[symbol]
 	}
 	takeProfit = roundStepSize(takeProfit, PriceFilterMap[symbol])
-	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).
+	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).ClosePosition(true).
 		NewClientOrderID(RandStr("SIMC-", 12)).ActivationPrice(fmt.Sprintf("%f", takeProfit)).CallbackRate("1").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
 	if err != nil {
 		log.Printf("Error setting take profit: %v", err)
@@ -320,7 +330,7 @@ func RandStr(prefix string, length int) string {
 	for i := range b {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
-	str := fmt.Sprintf("%s-%s", prefix, string(b))
+	str := fmt.Sprintf("%s%s", prefix, string(b))
 	return str
 }
 func keys(m map[string]float64) []string {
