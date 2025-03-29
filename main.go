@@ -80,6 +80,7 @@ func init() {
 	// binance.WebsocketTimeout = time.Second * 1
 	//校准时间
 	client.NewSetServerTimeService().Do(context.Background())
+	GetSymbolInfo(client)
 }
 
 func GetSymbolInfo(client *futures.Client) {
@@ -112,11 +113,11 @@ func GetSymbolInfo(client *futures.Client) {
 }
 
 func main() {
+	go clearHistory()
 	go wsUser(client)
 	go wsUserReConnect()
 	go UpdateATR()
 	updateATR()
-	GetSymbolInfo(client)
 	listenWebSocket()
 }
 func setAtr(symbol string, atr float64, lastClose float64) {
@@ -202,13 +203,13 @@ func listenWebSocket() {
 		symbolsWithInterval[symbol] = shortPriod
 	}
 	doneC, stopC, err := futures.WsCombinedKlineServe(symbolsWithInterval, func(event *futures.WsKlineEvent) {
-		if !event.Kline.IsFinal {
-			return
-		}
+		// if !event.Kline.IsFinal {
+		// 	return
+		// }
 		openPrice := parseFloat(event.Kline.Open)
 		closePrice := parseFloat(event.Kline.Close)
 		priceChange := closePrice - openPrice
-		atrValue := math.Max(0.012*openPrice, atrValues[event.Symbol])
+		atrValue := atrValues[event.Symbol]
 		if atrValue > 0 && math.Abs(priceChange) > atrValue && !positonOrder[event.Symbol] {
 			direction := "BUY"
 			if priceChange < 0 {
@@ -237,10 +238,9 @@ func placeOrder(symbol, side string, price float64) {
 	}
 
 	db.Where("created_at >= DATETIME('now', '-1 hours') ").Count(&hourCount)
-	if hourCount > 4 {
+	if hourCount > 6 {
 		return
 	}
-
 	if hasPumped(symbol, side, price) {
 		fmt.Println(symbol, "价格已不正常不处理")
 		return
@@ -256,12 +256,27 @@ func placeOrder(symbol, side string, price float64) {
 	log.Printf("已开仓: %s %s, %+v\n", symbol, side, order)
 
 	price = parseFloat(order.AvgPrice)
-	stopLoss := price * 0.975
+
+	stopLoss := price * 0.99
 	_side := "SELL"
 	if side == "SELL" {
-		stopLoss = price * 1.025
+		stopLoss = price * 1.01
 		_side = "BUY"
 	}
+
+	takeProfit := price + 0.3*atrValues[symbol]
+	if side == "SELL" {
+		takeProfit = price - 0.3*atrValues[symbol]
+	}
+	//.ActivationPrice(fmt.Sprintf("%f", takeProfit))
+	takeProfit = roundStepSize(takeProfit, PriceFilterMap[symbol])
+	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).NewClientOrderID(RandStr("SIMC-", 12)).CallbackRate("0.2").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
+	if err != nil {
+		log.Printf("Error setting take profit: %v", err)
+		return
+	}
+	log.Printf("止盈设置: %f %f %f\n", price, atrValues[symbol], takeProfit)
+
 	stopLoss = roundStepSize(stopLoss, PriceFilterMap[symbol])
 	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeStopMarket).ClosePosition(true).
 		NewClientOrderID(RandStr("SIMC-", 12)).StopPrice(fmt.Sprintf("%f", stopLoss)).Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
@@ -270,19 +285,6 @@ func placeOrder(symbol, side string, price float64) {
 		return
 	}
 	log.Printf("止损设置: %f %f\n", price, stopLoss)
-
-	takeProfit := price + 0.3*atrValues[symbol]
-	if side == "SELL" {
-		takeProfit = price - 0.3*atrValues[symbol]
-	}
-	takeProfit = roundStepSize(takeProfit, PriceFilterMap[symbol])
-	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).ClosePosition(true).
-		NewClientOrderID(RandStr("SIMC-", 12)).ActivationPrice(fmt.Sprintf("%f", takeProfit)).CallbackRate("1").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
-	if err != nil {
-		log.Printf("Error setting take profit: %v", err)
-		return
-	}
-	log.Printf("止盈设置: %f %f %f\n", price, atrValues[symbol], takeProfit)
 }
 func updateATR() {
 	symbols := keys(cfg.Bet)
@@ -380,7 +382,13 @@ func wsUserReConnect() {
 		wsUserStop <- struct{}{}
 	}
 }
-
+func clearHistory() {
+	for {
+		time.Sleep(24 * time.Hour)
+		db.Unscoped().Where("created_at <= DATETIME('now', '-3 days') ").Delete(&Cache{})
+		// db.Delete("created_at <= DATETIME('now', '-3 days') ")
+	}
+}
 func userWsHandler(event *futures.WsUserDataEvent) {
 	if event.Event != futures.UserDataEventTypeOrderTradeUpdate {
 		return
