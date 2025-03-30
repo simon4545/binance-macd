@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	longPriod  = "30m"
+	longPriod  = "1h"
 	shortPriod = "5m"
 )
 
@@ -118,6 +118,7 @@ func main() {
 	go wsUserReConnect()
 	go UpdateATR()
 	updateATR()
+	placeOrder("SUIUSDT", "BUY", 2.4269)
 	listenWebSocket()
 }
 func setAtr(symbol string, atr float64, lastClose float64) {
@@ -210,7 +211,7 @@ func listenWebSocket() {
 		closePrice := parseFloat(event.Kline.Close)
 		priceChange := closePrice - openPrice
 		atrValue := atrValues[event.Symbol]
-		if atrValue > 0 && math.Abs(priceChange) > atrValue && !positonOrder[event.Symbol] {
+		if atrValue > 0 && math.Abs(priceChange) > atrValue {
 			direction := "BUY"
 			if priceChange < 0 {
 				direction = "SELL"
@@ -231,46 +232,58 @@ func listenWebSocket() {
 }
 
 func placeOrder(symbol, side string, price float64) {
-	var cache Cache
-	var hourCount int64
-	if err := db.Where("key = ? AND created_at >= DATETIME('now', '-1 hours') ", symbol).First(&cache).Error; err == nil {
-		return
-	}
+	// var cache Cache
+	// var hourCount int64
+	// if err := db.Where("key = ? AND created_at >= DATETIME('now', '-1 hours') ", symbol).First(&cache).Error; err == nil {
+	// 	return
+	// }
 
-	db.Where("created_at >= DATETIME('now', '-1 hours') ").Count(&hourCount)
-	if hourCount > 6 {
-		return
-	}
-	if hasPumped(symbol, side, price) {
-		fmt.Println(symbol, "价格已不正常不处理")
-		return
-	}
-	db.Create(&Cache{Key: symbol, Value: true})
+	// db.Where("created_at >= DATETIME('now', '-1 hours') ").Count(&hourCount)
+	// if hourCount > 6 {
+	// 	return
+	// }
+	//if hasPumped(symbol, side, price) {
+	//	fmt.Println(symbol, "价格已不正常不处理")
+	//	return
+	//}
+	// db.Create(&Cache{Key: symbol, Value: true})
 	quantity := roundStepSize(cfg.Bet[symbol]/price, LotSizeMap[symbol])
-	order, err := client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(side)).NewClientOrderID(RandStr("SIM-", 12)).
-		Type(futures.OrderTypeMarket).Quantity(fmt.Sprintf("%f", quantity)).NewOrderResponseType(futures.NewOrderRespTypeRESULT).Do(context.Background())
+	order, err := client.NewCreateOrderService().
+		Symbol(symbol).
+		Side(futures.SideType(side)).
+		NewClientOrderID(RandStr("SIM-", 12)).
+		Type(futures.OrderTypeTrailingStopMarket).
+		CallbackRate("0.2").
+		Quantity(fmt.Sprintf("%f", quantity)).
+		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
+		Do(context.Background())
 	if err != nil {
 		log.Printf("Error placing order: %v", err)
 		return
 	}
 	log.Printf("已开仓: %s %s, %+v\n", symbol, side, order)
-
-	price = parseFloat(order.AvgPrice)
-
+	// price = parseFloat(order.AvgPrice)
+}
+func setCloseOrder(symbol string, price float64, quantity float64, side string) {
+	var err error
 	stopLoss := price * 0.99
+	takeProfit := price + 0.3*atrValues[symbol]
 	_side := "SELL"
 	if side == "SELL" {
 		stopLoss = price * 1.01
+		takeProfit = price - 0.3*atrValues[symbol]
 		_side = "BUY"
 	}
 
-	takeProfit := price + 0.3*atrValues[symbol]
-	if side == "SELL" {
-		takeProfit = price - 0.3*atrValues[symbol]
-	}
 	//.ActivationPrice(fmt.Sprintf("%f", takeProfit))
 	takeProfit = roundStepSize(takeProfit, PriceFilterMap[symbol])
-	_, err = client.NewCreateOrderService().Symbol(symbol).Side(futures.SideType(_side)).Type(futures.OrderTypeTrailingStopMarket).NewClientOrderID(RandStr("SIMC-", 12)).CallbackRate("0.2").Quantity(fmt.Sprintf("%f", quantity)).Do(context.Background())
+	_, err = client.NewCreateOrderService().Symbol(symbol).
+		Side(futures.SideType(_side)).
+		Type(futures.OrderTypeTrailingStopMarket).
+		NewClientOrderID(RandStr("SIMC-", 12)).
+		CallbackRate("0.2").
+		Quantity(fmt.Sprintf("%f", quantity)).
+		Do(context.Background())
 	if err != nil {
 		log.Printf("Error setting take profit: %v", err)
 		return
@@ -397,9 +410,14 @@ func userWsHandler(event *futures.WsUserDataEvent) {
 	if message.Status == "FILLED" {
 		// quantity, _ := strconv.ParseFloat(message.Volume, 64)
 		symbol := message.Symbol
+		price, _ := strconv.ParseFloat(message.AveragePrice, 64)
+		quantity, _ := strconv.ParseFloat(message.AccumulatedFilledQty, 64)
+		side := string(message.Side)
 		if strings.HasPrefix(message.ClientOrderID, "SIMC-") {
-			positonOrder[symbol] = false
 			client.NewCancelAllOpenOrdersService().Symbol(symbol).Do(context.Background())
+		}
+		if strings.HasPrefix(message.ClientOrderID, "SIM-") {
+			setCloseOrder(symbol, price, quantity, side)
 		}
 	}
 }
