@@ -63,7 +63,7 @@ func init() {
 	symbols := keys(cfg.Bet)
 	for _, symbol := range symbols {
 		if cfg.AtrMultier[symbol] == 0.0 {
-			cfg.AtrMultier[symbol] = 1.0
+			cfg.AtrMultier[symbol] = 0.8
 		}
 	}
 	// Initialize SQLite database
@@ -118,7 +118,7 @@ func main() {
 	go wsUserReConnect()
 	go UpdateATR()
 	updateATR()
-	placeOrder("SUIUSDT", "BUY", 2.4269)
+	// placeOrder("SUIUSDT", "BUY", 2.4269)
 	listenWebSocket()
 }
 func setAtr(symbol string, atr float64, lastClose float64) {
@@ -213,7 +213,7 @@ func listenWebSocket() {
 		atrValue := atrValues[event.Symbol]
 		if atrValue > 0 && math.Abs(priceChange) > atrValue {
 			direction := "BUY"
-			if priceChange < 0 {
+			if priceChange > 0 {
 				direction = "SELL"
 			}
 			log.Printf("开仓信号: %s %s %v\n", event.Symbol, direction, positonOrder[event.Symbol])
@@ -232,28 +232,28 @@ func listenWebSocket() {
 }
 
 func placeOrder(symbol, side string, price float64) {
-	// var cache Cache
-	// var hourCount int64
-	// if err := db.Where("key = ? AND created_at >= DATETIME('now', '-1 hours') ", symbol).First(&cache).Error; err == nil {
-	// 	return
-	// }
+	var cache Cache
+	var hourCount int64
+	if err := db.Where("key = ? AND created_at >= DATETIME('now', '-1 hours') ", symbol).First(&cache).Error; err == nil {
+		return
+	}
 
-	// db.Where("created_at >= DATETIME('now', '-1 hours') ").Count(&hourCount)
-	// if hourCount > 6 {
-	// 	return
-	// }
+	db.Where("created_at >= DATETIME('now', '-1 hours') ").Count(&hourCount)
+	if hourCount > 6 {
+		return
+	}
 	//if hasPumped(symbol, side, price) {
 	//	fmt.Println(symbol, "价格已不正常不处理")
 	//	return
 	//}
-	// db.Create(&Cache{Key: symbol, Value: true})
+	db.Create(&Cache{Key: symbol, Value: true})
 	quantity := roundStepSize(cfg.Bet[symbol]/price, LotSizeMap[symbol])
 	order, err := client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideType(side)).
 		NewClientOrderID(RandStr("SIM-", 12)).
 		Type(futures.OrderTypeTrailingStopMarket).
-		CallbackRate("0.2").
+		CallbackRate("0.3").
 		Quantity(fmt.Sprintf("%f", quantity)).
 		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
 		Do(context.Background())
@@ -281,7 +281,7 @@ func setCloseOrder(symbol string, price float64, quantity float64, side string) 
 		Side(futures.SideType(_side)).
 		Type(futures.OrderTypeTrailingStopMarket).
 		NewClientOrderID(RandStr("SIMC-", 12)).
-		CallbackRate("0.2").
+		CallbackRate("0.3").
 		Quantity(fmt.Sprintf("%f", quantity)).
 		Do(context.Background())
 	if err != nil {
