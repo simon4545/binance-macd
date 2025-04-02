@@ -34,6 +34,7 @@ type Config struct {
 var (
 	cfg            Config
 	atrValues      = make(map[string]float64)
+	atrPercent     = make(map[string]float64)
 	positonOrder   = map[string]bool{}
 	db             *gorm.DB
 	client         *futures.Client
@@ -63,7 +64,7 @@ func init() {
 	symbols := keys(cfg.Bet)
 	for _, symbol := range symbols {
 		if cfg.AtrMultier[symbol] == 0.0 {
-			cfg.AtrMultier[symbol] = 0.8
+			cfg.AtrMultier[symbol] = 1.0
 		}
 	}
 	// Initialize SQLite database
@@ -125,9 +126,9 @@ func setAtr(symbol string, atr float64, lastClose float64) {
 	delock.Lock()
 	defer delock.Unlock()
 	atrValues[symbol] = atr * cfg.AtrMultier[symbol]
-	atrValues[symbol] = math.Max(0.01*lastClose, atrValues[symbol])
-	atrPercent := atrValues[symbol] * 100 / lastClose
-	log.Printf("%s ATR: %.3f %.2f%%\n", symbol, atrValues[symbol], atrPercent)
+	atrValues[symbol] = math.Max(0.015*lastClose, atrValues[symbol])
+	atrPercent[symbol] = atrValues[symbol] * 100 / lastClose
+	log.Printf("%s ATR: %.3f %.2f%%\n", symbol, atrValues[symbol], atrPercent[symbol])
 }
 func fetchATR(symbol string) {
 	klines, err := client.NewKlinesService().Symbol(symbol).Interval(longPriod).Limit(16).Do(context.Background())
@@ -234,7 +235,7 @@ func listenWebSocket() {
 func placeOrder(symbol, side string, price float64) {
 	var cache Cache
 	var hourCount int64
-	if err := db.Where("key = ? AND created_at >= DATETIME('now', '-1 hours') ", symbol).First(&cache).Error; err == nil {
+	if err := db.Where("key = ? AND created_at >= DATETIME('now', '-30 minutes') ", symbol).First(&cache).Error; err == nil {
 		return
 	}
 
@@ -248,12 +249,13 @@ func placeOrder(symbol, side string, price float64) {
 	//}
 	db.Create(&Cache{Key: symbol, Value: true})
 	quantity := roundStepSize(cfg.Bet[symbol]/price, LotSizeMap[symbol])
+	callbackRate := fmt.Sprintf("%.2f", math.Max(0.3, atrPercent[symbol]*0.2))
 	order, err := client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideType(side)).
 		NewClientOrderID(RandStr("SIM-", 12)).
 		Type(futures.OrderTypeTrailingStopMarket).
-		CallbackRate("0.3").
+		CallbackRate(callbackRate).
 		Quantity(fmt.Sprintf("%f", quantity)).
 		NewOrderResponseType(futures.NewOrderRespTypeRESULT).
 		Do(context.Background())
