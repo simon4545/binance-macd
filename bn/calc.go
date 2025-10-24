@@ -83,25 +83,18 @@ func CheckAmplitude() {
 }
 
 func checkPriceDropRate(klines *configuration.KLine, symbol, period string) bool {
-	// 动态计算过去 24 小时的 K 线数量
 	count := calculateKLineCountFor24h(period)
 	if count <= 0 {
 		return false
 	}
-	// recentHighs := make([]float64, 0)
 	if len(klines.Close) < count {
 		return false
 	}
-	// for i := len(klines.High) - 287; i < len(klines.High); i++ {
-	// 	recentHighs = append(recentHighs, klines.High[i])
-	// }
-	// 取最近 count 根 K 线的最高价
 	startIdx := len(klines.High) - count
 	if startIdx < 0 {
 		startIdx = 0
 	}
-	recentHighs := klines.High[startIdx:]
-	maxHigh := slices.Max(recentHighs)
+	maxHigh := slices.Max(klines.High[startIdx:])
 	priceDropRate := 1 - klines.Price/maxHigh
 	if Amplitudes[symbol] == 0 {
 		return false
