@@ -72,7 +72,7 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 	}
 	spacing := CalcSpacing(invests, symbolConfig.PriceProtect)
 	fmt.Println("浮动盈亏", pair, lastPrice, upper, lower, spacing, functions.RoundStepSize(takeprofit, 0.1))
-	if checkPriceDropRate(assetInfo, pair) {
+	if checkPriceDropRate(assetInfo, pair,symbolConfig.Period) {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 3)
 		// if checkRecentBullishCandles(assetInfo) {
 		if recentInvestment == -1 {

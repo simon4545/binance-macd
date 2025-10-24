@@ -82,15 +82,25 @@ func CheckAmplitude() {
 	}
 }
 
-func checkPriceDropRate(klines *configuration.KLine, symbol string) bool {
-	recentHighs := make([]float64, 0)
-	if len(klines.Close) < 287 {
+func checkPriceDropRate(klines *configuration.KLine, symbol, period string) bool {
+	// 动态计算过去 24 小时的 K 线数量
+	count := calculateKLineCountFor24h(period)
+	if count <= 0 {
 		return false
 	}
-	for i := len(klines.High) - 287; i < len(klines.High); i++ {
-		recentHighs = append(recentHighs, klines.High[i])
+	// recentHighs := make([]float64, 0)
+	if len(klines.Close) < count {
+		return false
 	}
-
+	// for i := len(klines.High) - 287; i < len(klines.High); i++ {
+	// 	recentHighs = append(recentHighs, klines.High[i])
+	// }
+	// 取最近 count 根 K 线的最高价
+	startIdx := len(klines.High) - count
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	recentHighs := klines.High[startIdx:]
 	maxHigh := slices.Max(recentHighs)
 	priceDropRate := 1 - klines.Price/maxHigh
 	if Amplitudes[symbol] == 0 {
@@ -115,4 +125,16 @@ func CalcSpacing(invests []db.Investment, rate float64) (spacing float64) {
 		panic("data error")
 	}
 	return (first.UnitPrice / 100) * rate * 100
+}
+
+// calculateKLineCountFor24h 使用 ConvertToSeconds 计算 24 小时包含多少根 K 线
+func calculateKLineCountFor24h(period string) int {
+	secondsPerBar := functions.ConvertToSeconds(period)
+	if secondsPerBar <= 0 {
+		return 0
+	}
+
+	// 24 小时 = 24 * 60 * 60 秒
+	totalSeconds := 24 * 60 * 60
+	return totalSeconds / secondsPerBar
 }
