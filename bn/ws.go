@@ -63,37 +63,22 @@ func wsKlineHandler(event *binance.WsKlineEvent) {
 	low, _ := strconv.ParseFloat(k.Low, 64)
 	assetInfo.Price = close
 	// volume, _ := strconv.ParseInt(k.Volume, 10, 64)
-
+	lastKline := assetInfo.Date[len(assetInfo.Date)-1]
+	if lastKline == timestamp {
+		assetInfo.Close[len(assetInfo.Close)-1] = close
+		assetInfo.Open[len(assetInfo.Open)-1] = open
+		assetInfo.High[len(assetInfo.High)-1] = high
+		assetInfo.Low[len(assetInfo.Low)-1] = low
+	} else {
+		assetInfo.Close = append(assetInfo.Close, close)
+		assetInfo.Open = append(assetInfo.Open, open)
+		assetInfo.High = append(assetInfo.High, high)
+		assetInfo.Low = append(assetInfo.Low, low)
+		assetInfo.Date = append(assetInfo.Date, timestamp)
+	}
 	if k.IsFinal {
-		lastKline := assetInfo.Date[len(assetInfo.Date)-1]
-		if lastKline == timestamp {
-			assetInfo.Close[len(assetInfo.Close)-1] = close
-			assetInfo.Open[len(assetInfo.Open)-1] = open
-			assetInfo.High[len(assetInfo.High)-1] = high
-			assetInfo.Low[len(assetInfo.Low)-1] = low
-		} else {
-			assetInfo.Close = append(assetInfo.Close, close)
-			assetInfo.Open = append(assetInfo.Open, open)
-			assetInfo.High = append(assetInfo.High, high)
-			assetInfo.Low = append(assetInfo.Low, low)
-			assetInfo.Date = append(assetInfo.Date, timestamp)
-		}
 		fmt.Println("lastKline", lastKline, timestamp, "changdu", len(assetInfo.Close), k.Symbol)
 	}
-	// if assetInfo.Date[len(assetInfo.Date)-1] == timeFromUnix {
-	// 	assetInfo.Close[len(assetInfo.Close)-1] = close
-	// 	assetInfo.Open[len(assetInfo.Open)-1] = open
-	// 	assetInfo.High[len(assetInfo.High)-1] = high
-	// 	assetInfo.Low[len(assetInfo.Low)-1] = low
-	// } else {
-	// 	assetInfo.Close = append(assetInfo.Close, close)
-	// 	assetInfo.Open = append(assetInfo.Open, open)
-	// 	assetInfo.High = append(assetInfo.High, high)
-	// 	assetInfo.Low = append(assetInfo.Low, low)
-	// 	assetInfo.Date = append(assetInfo.Date, timeFromUnix)
-	// }
-
-	// logger.Info(event)
 }
 
 // websocket K线
