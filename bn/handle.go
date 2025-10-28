@@ -72,9 +72,9 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 	}
 	spacing := CalcSpacing(invests, symbolConfig.PriceProtect)
 	fmt.Println("浮动盈亏", pair, lastPrice, upper, lower, spacing, functions.RoundStepSize(takeprofit, 0.1))
+	
 	if checkPriceDropRate(assetInfo, pair, symbolConfig.Period) {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 3)
-		// if checkRecentBullishCandles(assetInfo) {
 		if recentInvestment == -1 {
 			if invest != nil && lastPrice > (invest.UnitPrice-spacing) {
 				fmt.Println(pair, "价格过于接近，不建仓")
@@ -83,16 +83,13 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 			log.Printf("Buy signal detected for %s\n", pair)
 			CreateOrder(c, level, pair, invests)
 		}
-		// }
 	}
 
 	// 条件
 	// 最近5根k线不能多次交易
 	// 本次进场价要低于上次进场价
-	// || (len(invests) > 0 && lastPrice < invest.UnitPrice*(1-symbolConfig.ForceSell))
 	if lastPrice > upper {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 10)
-
 		if investCount <= level && recentInvestment == -1 {
 			if invest != nil && lastPrice > (invest.UnitPrice-spacing) {
 				fmt.Println(pair, "价格过于接近，不建仓")
@@ -128,12 +125,11 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 			//如果出现死叉
 			//如果现价比建仓价高20%
 			//fmt.Println("diff",quantity*lastPrice , v.Amount*1.008)
-			if (lastPrice < lower && quantity*lastPrice > v.Amount*1.008) ||
+			if (lastPrice < lower && quantity*lastPrice > v.Amount*1.007) ||
 				(quantity*lastPrice > v.Amount*(1+symbolConfig.ForceSell)) {
 				fmt.Println(pair, "出现死叉", balance, lastPrice, "GetSumInvestment", sumInvestment, "GetInvestmentCount", investCount)
 				// 插入卖单
 				amount := createSOrder(strconv.FormatFloat(quantity, 'f', -1, 64), pair)
-				// ClearHistory(symbol, amount-sumInvestment)
 				db.ClearHistoryById(v.ID, symbol, amount-v.Amount-amount*configuration.FeeMap[pair])
 				// earn := quantity*lastPrice - v.Amount
 				// ret := createMarketOrder(client, pair, strconv.FormatFloat(quantity, 'f', -1, 64), "SELL")

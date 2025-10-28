@@ -48,8 +48,8 @@ func getListKlines(pair string) {
 		assetInfo.Low = append(assetInfo.Low, low)
 		assetInfo.Date = append(assetInfo.Date, timestamp)
 	}
-
 }
+
 func wsKlineHandler(event *binance.WsKlineEvent) {
 	k := event.Kline
 	assetInfo := AssetInfo[k.Symbol]
@@ -76,7 +76,10 @@ func wsKlineHandler(event *binance.WsKlineEvent) {
 		assetInfo.Low = append(assetInfo.Low, low)
 		assetInfo.Date = append(assetInfo.Date, timestamp)
 	}
+
 	if k.IsFinal {
+		// 控制数据长度，防止无限增长
+		LimitKLineData(assetInfo, 2000)
 		fmt.Println("lastKline", lastKline, timestamp, "changdu", len(assetInfo.Close), k.Symbol)
 	}
 }

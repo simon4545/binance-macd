@@ -54,3 +54,18 @@ func GetSymbolInfo(client *binance.Client) {
 		configuration.FeeMap[s.Symbol] = fee
 	}
 }
+
+// LimitKLineData 控制K线数据的长度，防止数据无限增长
+func LimitKLineData(kline *configuration.KLine, maxLength int) {
+	if len(kline.Close) > maxLength {
+		// 计算需要移除的元素数量
+		removeCount := len(kline.Close) - maxLength
+		
+		// 删除旧数据
+		kline.Date = kline.Date[removeCount:]
+		kline.Open = kline.Open[removeCount:]
+		kline.Close = kline.Close[removeCount:]
+		kline.High = kline.High[removeCount:]
+		kline.Low = kline.Low[removeCount:]
+	}
+}
