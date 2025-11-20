@@ -53,7 +53,7 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 	symbolConfig := c.Symbols[pair]
 	symbol, _ := functions.SplitSymbol(pair)
 	upper, lower := functions.SuperTreand(assetInfo)
-	ema144 := functions.CheckEMA(assetInfo, 120)
+	ema144 := functions.CheckEMA(assetInfo, 144)
 	// fastSignal, slowSignal, _ := talib.Macd(closingPrices, 12, 26, 9)
 
 	invests := db.GetInvestments(symbol)
