@@ -53,6 +53,7 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 	symbolConfig := c.Symbols[pair]
 	symbol, _ := functions.SplitSymbol(pair)
 	upper, lower := functions.SuperTreand(assetInfo)
+	ema144 := functions.CheckEMA(assetInfo, 120)
 	// fastSignal, slowSignal, _ := talib.Macd(closingPrices, 12, 26, 9)
 
 	invests := db.GetInvestments(symbol)
@@ -71,8 +72,8 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 		return
 	}
 	spacing := CalcSpacing(invests, symbolConfig.PriceProtect)
-	fmt.Println("浮动盈亏", pair, lastPrice, upper, lower, spacing, functions.RoundStepSize(takeprofit, 0.1))
-	
+	fmt.Println("浮动盈亏", pair, lastPrice, "ema30", ema144, upper, lower, spacing, functions.RoundStepSize(takeprofit, 0.1))
+
 	if checkPriceDropRate(assetInfo, pair, symbolConfig.Period) {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 3)
 		if recentInvestment == -1 {
@@ -88,7 +89,7 @@ func Handle(pair string, assetInfo *configuration.KLine) {
 	// 条件
 	// 最近5根k线不能多次交易
 	// 本次进场价要低于上次进场价
-	if lastPrice > upper {
+	if lastPrice > upper && lastPrice > ema144 {
 		recentInvestment := recentInvestmentPrice(invests, symbolConfig.Period, 10)
 		if investCount <= level && recentInvestment == -1 {
 			if invest != nil && lastPrice > (invest.UnitPrice-spacing) {

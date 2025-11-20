@@ -58,6 +58,10 @@ func SuperTreand(assetInfo *configuration.KLine) (float64, float64) {
 	min := talib.Min(assetInfo.Close[:len(assetInfo.Close)-1], 2)
 	return max[len(max)-1], min[len(min)-1]
 }
+func CheckEMA(assetInfo *configuration.KLine, length int) float64 {
+	ema144 := talib.Ema(assetInfo.Close, length)
+	return ema144[len(ema144)-1]
+}
 func checkAtr(client *binance.Client, symbol string, config *configuration.Config) {
 	klines, err := client.NewKlinesService().Symbol(symbol + "USDT").Interval(config.Symbols[symbol].Period).Limit(100).Do(context.Background())
 	if err != nil {
